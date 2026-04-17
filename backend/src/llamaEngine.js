@@ -180,9 +180,15 @@ export class LlamaEngine extends EventEmitter {
   async _mockInfer(prompt, threads, inferStart, options = {}) {
     const { onToken = null } = options;
 
+    const normalizedPrompt = String(prompt ?? '').trim().toLowerCase();
+
     const mockResponses = {
       hi: 'Hello. Tell me your situation and I will give a concise survival plan.',
       hello: 'Hello. Tell me your situation and I will give a concise survival plan.',
+      hey: 'Hey. Share your scenario and I will give a clear next-step plan.',
+      greetings: 'Greetings. Describe your environment and constraints for a focused plan.',
+      thanks: 'You are welcome. If you want, I can give a compact checklist for your next step.',
+      thank: 'You are welcome. If you want, I can give a compact checklist for your next step.',
       wound: "Apply direct pressure immediately with clean cloth. Elevate the limb above heart level. If arterial bleeding, apply tourniquet 2-3 inches above wound. Do not remove once applied. Mark time of application.",
       fire: "Use the bow-drill or flint-and-steel method. Prepare tinder bundle (dry grass, bark shreds), kindling (pencil-sized sticks), and fuel wood. Strike sparks into tinder, blow gently, add kindling progressively.",
       water: "Prioritize moving water over stagnant. Filter through cloth, then boil 1 minute (3 minutes above 2000m). Look for animal trails leading downhill — they often lead to water sources.",
@@ -191,10 +197,18 @@ export class LlamaEngine extends EventEmitter {
       default: "In wilderness survival, prioritize in this order: 1) Signal for rescue, 2) Shelter from elements, 3) Find water (dehydration kills in 3 days), 4) Find food (starvation takes weeks). Stay calm and think before acting."
     };
 
-    const lower = prompt.toLowerCase();
     let mockText = mockResponses.default;
     for (const [key, val] of Object.entries(mockResponses)) {
-      if (lower.includes(key)) { mockText = val; break; }
+      if (normalizedPrompt.includes(key)) { mockText = val; break; }
+    }
+
+    if (mockText === mockResponses.default) {
+      const isShortConversational = normalizedPrompt.length > 0 && normalizedPrompt.length <= 32;
+      const hasQuestion = normalizedPrompt.includes('?');
+      const conversationalPattern = /\b(yo|sup|hola|how are you|good morning|good evening|good night|what'?s up|whats up)\b/;
+      if (isShortConversational || hasQuestion || conversationalPattern.test(normalizedPrompt)) {
+        mockText = 'I can help with survival guidance. Ask about shelter, water, fire, wounds, or navigation for a concise answer.';
+      }
     }
 
     // Simulate realistic token-by-token generation with thread-dependent speed
