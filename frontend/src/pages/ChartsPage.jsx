@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer, ReferenceLine, ScatterChart,
-  Scatter, ZAxis
+  Scatter, ZAxis, Cell
 } from 'recharts';
 import { api } from '../utils/api';
 
@@ -130,9 +130,9 @@ export default function ChartsPage({ telemetrySamples }) {
               <YAxis tick={{ fontSize: 10, fill: '#5f6678' }} label={{ value: 'Runs', angle: -90, position: 'insideLeft', fontSize: 10, fill: '#5f6678' }} />
               <Tooltip contentStyle={tooltipStyle} />
               <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Bar dataKey="count" name="Run count" fill={(d) => d.pipeline === 'AEO' ? COLORS.AEO : COLORS.Baseline} radius={[2,2,0,0]}>
+              <Bar dataKey="count" name="Run count" radius={[2,2,0,0]}>
                 {threadData.map((entry, i) => (
-                  <rect key={i} fill={entry.pipeline === 'AEO' ? COLORS.AEO : COLORS.Baseline} />
+                  <Cell key={i} fill={entry.pipeline === 'AEO' ? COLORS.AEO : COLORS.Baseline} />
                 ))}
               </Bar>
             </BarChart>
