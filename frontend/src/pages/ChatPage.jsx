@@ -221,7 +221,7 @@ export default function ChatPage({ aeoEnabled, deviceState }) {
             <>
               <div className="metric-card">
                 <div className="metric-label">TTFT</div>
-                <div className="metric-value c-green">{m.cached ? '&lt;1' : ((m.metrics?.time_to_first_token_sec || 0) * 1000).toFixed(0)}<span style={{ fontSize: 12, color: 'var(--text2)' }}> ms</span></div>
+                <div className="metric-value c-green">{m.cached ? '<1' : ((m.metrics?.time_to_first_token_sec || 0) * 1000).toFixed(0)}<span style={{ fontSize: 12, color: 'var(--text2)' }}> ms</span></div>
               </div>
               <div className="metric-card">
                 <div className="metric-label">Generation Rate</div>
