@@ -26,11 +26,39 @@ export default function ChartsPage({ telemetrySamples }) {
   const [results, setResults] = useState([]);
   const [loaded, setLoaded] = useState(false);
 
-  useEffect(() => {
-    api.getResults().then(d => {
+  const liveTelemetry = telemetrySamples ?? [];
+
+  async function refreshResults() {
+    try {
+      const d = await api.getResults();
       setResults(d.results || []);
+    } finally {
       setLoaded(true);
-    }).catch(() => setLoaded(true));
+    }
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const poll = async () => {
+      try {
+        const d = await api.getResults();
+        if (!cancelled) {
+          setResults(d.results || []);
+          setLoaded(true);
+        }
+      } catch {
+        if (!cancelled) setLoaded(true);
+      }
+    };
+
+    poll();
+    const interval = setInterval(poll, 1500);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
   }, []);
 
   const aeo = results.filter(r => r.pipeline_used === 'AEO' && !r.cache_hit);
@@ -56,14 +84,14 @@ export default function ChartsPage({ telemetrySamples }) {
   });
 
   // Memory profile from telemetry
-  const memData = telemetrySamples.slice(-120).map(s => ({
+  const memData = liveTelemetry.slice(-120).map(s => ({
     t: s.t,
     ram: s.ram_used_mb,
     pipeline: s.pipeline,
   }));
 
   // Thermal data
-  const thermalData = telemetrySamples.slice(-120).map(s => ({
+  const thermalData = liveTelemetry.slice(-120).map(s => ({
     t: s.t,
     temp: s.cpu_temp_c,
     pipeline: s.pipeline,
@@ -90,7 +118,7 @@ export default function ChartsPage({ telemetrySamples }) {
 
   if (!loaded) return <div style={{ padding: 32, color: 'var(--text2)' }}>Loading...</div>;
 
-  if (results.length === 0 && telemetrySamples.length < 5) {
+  if (results.length === 0 && liveTelemetry.length < 5) {
     return (
       <div style={{ padding: 32, textAlign: 'center', color: 'var(--text2)' }}>
         <div style={{ fontSize: 32, marginBottom: 12 }}>📊</div>
@@ -238,7 +266,7 @@ export default function ChartsPage({ telemetrySamples }) {
         <ChartCard title="Battery Drain Simulation Over Session">
           <ResponsiveContainer width="100%" height={200}>
             <LineChart
-              data={telemetrySamples.slice(-120).map(s => ({ t: s.t, bat: s.battery_pct, pipeline: s.pipeline }))}
+              data={liveTelemetry.slice(-120).map(s => ({ t: s.t, bat: s.battery_pct, pipeline: s.pipeline }))}
               margin={{ top: 5, right: 10, bottom: 10, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
               <XAxis dataKey="t" tick={{ fontSize: 9, fill: '#5f6678' }} />
