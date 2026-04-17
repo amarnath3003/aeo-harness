@@ -110,4 +110,21 @@ export class SemanticCache {
     this.hits = 0;
     this.misses = 0;
   }
+
+  /**
+   * Remove cache entries for a specific scope prefix.
+   * Returns number of deleted entries.
+   */
+  clearScope(scope) {
+    if (!scope) return 0;
+    const prefix = `[scope:${scope}] `;
+    let deleted = 0;
+    for (const key of this.store.keys()) {
+      if (key.startsWith(prefix)) {
+        this.store.delete(key);
+        deleted++;
+      }
+    }
+    return deleted;
+  }
 }

@@ -93,7 +93,7 @@ app.post('/api/infer', async (req, res) => {
     let aeoDecision = null;
 
     if (useAEO) {
-      aeoDecision = await aeo.process(query, sensorContext, deviceState);
+      aeoDecision = await aeo.process(query, sensorContext, deviceState, { cacheScope: 'chat' });
 
       if (aeoDecision.cachedResponse) {
         return res.json({
@@ -132,7 +132,7 @@ app.post('/api/infer', async (req, res) => {
         }
       );
 
-      if (useAEO) aeo.cacheResponse(query, result.response);
+      if (useAEO) aeo.cacheResponse(query, result.response, sensorContext, 'chat');
       telemetry.notifyRunEnd(useAEO ? 'AEO' : 'Baseline');
 
       res.write(`data: ${JSON.stringify({
@@ -151,7 +151,7 @@ app.post('/api/infer', async (req, res) => {
         { maxTokens: 400 }
       );
 
-      if (useAEO) aeo.cacheResponse(query, result.response);
+      if (useAEO) aeo.cacheResponse(query, result.response, sensorContext, 'chat');
       telemetry.notifyRunEnd(useAEO ? 'AEO' : 'Baseline');
 
       res.json({

@@ -162,7 +162,8 @@ export class BenchmarkRunner extends EventEmitter {
       aeoDecision = await this.aeo.process(
         tc.query,
         tc.sensorContext,
-        deviceState
+        deviceState,
+        { cacheScope: 'benchmark' }
       );
 
       // Cache hit — zero compute
@@ -203,7 +204,7 @@ export class BenchmarkRunner extends EventEmitter {
       });
 
       // Cache the result for future hits
-      this.aeo.cacheResponse(tc.query, inferResult.response);
+      this.aeo.cacheResponse(tc.query, inferResult.response, tc.sensorContext, 'benchmark');
 
       const memAfter = await this._sampleMemory();
 
@@ -284,7 +285,7 @@ export class BenchmarkRunner extends EventEmitter {
     if (this.isRunning) throw new Error('Benchmark already running');
     this.isRunning = true;
     this.results = [];
-    this.aeo.cache.clear(); // always start with cold cache
+    this.aeo.clearCacheScope('benchmark'); // always start benchmark with cold benchmark cache
 
     const totalRuns = TEST_CORPUS.length * 2;
     let completed = 0;

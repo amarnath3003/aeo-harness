@@ -26,8 +26,9 @@ export class AEOOrchestrator {
    * @param {object} deviceState - { batteryPct, ramUsedPct }
    * @returns {object} AEO decision bundle consumed by the inference engine
    */
-  async process(userQuery, sensorContext = '', deviceState = {}) {
+  async process(userQuery, sensorContext = '', deviceState = {}, options = {}) {
     const startTime = process.hrtime.bigint();
+    const cacheScope = options.cacheScope || 'default';
 
     const result = {
       originalQuery: userQuery,
@@ -54,11 +55,8 @@ export class AEOOrchestrator {
 
     // ── STAGE 1: SEMANTIC CACHE ──────────────────────────────────────────────
     result.stage1.checked = true;
-    const fullQuery = sensorContext
-      ? `${userQuery} [context: ${sensorContext.substring(0, 80)}]`
-      : userQuery;
-
-    const cacheResult = this.cache.get(userQuery);
+    const cacheKey = this._buildCacheKey(userQuery, sensorContext, cacheScope);
+    const cacheResult = this.cache.get(cacheKey);
     if (cacheResult.hit) {
       result.stage1.hit = true;
       result.cachedResponse = cacheResult.response;
@@ -106,8 +104,13 @@ export class AEOOrchestrator {
   /**
    * Store a completed inference result into the semantic cache
    */
-  cacheResponse(query, response) {
-    this.cache.set(query, response);
+  cacheResponse(query, response, sensorContext = '', cacheScope = 'default') {
+    const cacheKey = this._buildCacheKey(query, sensorContext, cacheScope);
+    this.cache.set(cacheKey, response);
+  }
+
+  clearCacheScope(cacheScope) {
+    return this.cache.clearScope(cacheScope);
   }
 
   getCacheStats() {
@@ -131,5 +134,13 @@ export class AEOOrchestrator {
 
   getPipelineLog() {
     return this.pipelineLog;
+  }
+
+  _buildCacheKey(query, sensorContext = '', cacheScope = 'default') {
+    // Include request scope + condensed context so benchmark/chat runs are isolated.
+    const contextPart = sensorContext && sensorContext.trim().length > 0
+      ? ` [context: ${sensorContext.substring(0, 160)}]`
+      : '';
+    return `[scope:${cacheScope}] ${query}${contextPart}`;
   }
 }
