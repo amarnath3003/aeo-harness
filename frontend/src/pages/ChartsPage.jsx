@@ -28,12 +28,16 @@ export default function ChartsPage({ telemetrySamples }) {
 
   const liveTelemetry = telemetrySamples ?? [];
 
-  async function refreshResults() {
+  async function refreshResults(isCancelled = () => false) {
     try {
       const d = await api.getResults();
-      setResults(d.results || []);
+      if (!isCancelled()) {
+        setResults(d.results || []);
+      }
     } finally {
-      setLoaded(true);
+      if (!isCancelled()) {
+        setLoaded(true);
+      }
     }
   }
 
@@ -42,11 +46,8 @@ export default function ChartsPage({ telemetrySamples }) {
 
     const poll = async () => {
       try {
-        const d = await api.getResults();
-        if (!cancelled) {
-          setResults(d.results || []);
-          setLoaded(true);
-        }
+        if (cancelled) return;
+        await refreshResults(() => cancelled);
       } catch {
         if (!cancelled) setLoaded(true);
       }
