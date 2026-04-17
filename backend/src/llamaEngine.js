@@ -120,7 +120,17 @@ export class LlamaEngine extends EventEmitter {
 
       await this.session.prompt(prompt, {
         maxTokens,
-        onToken: (chunk) => {
+        onToken: (tokenIds) => {
+          let chunk = '';
+          if (typeof tokenIds === 'string') {
+            chunk = tokenIds;
+          } else {
+            const detokenized = this.model.detokenize(tokenIds);
+            chunk = typeof detokenized === 'string'
+              ? detokenized
+              : Buffer.from(detokenized).toString('utf8');
+          }
+
           const now = process.hrtime.bigint();
           if (firstTokenTime === null) {
             firstTokenTime = now;
@@ -129,7 +139,7 @@ export class LlamaEngine extends EventEmitter {
             this.emit('prompt_eval_done', promptEvalMs);
           }
           response += chunk;
-          tokenCount++;
+          tokenCount += ArrayBuffer.isView(tokenIds) ? tokenIds.length : 1;
           if (onToken) onToken(chunk);
           this.emit('token', chunk);
         }
