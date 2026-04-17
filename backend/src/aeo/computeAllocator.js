@@ -63,6 +63,9 @@ export const CPU_PROFILES = {
   'GENERIC': { perfCores: 4, effCores: 4, totalCores: 8 }   // Safe default
 };
 
+// Backward-compatible alias for callers that expect a thread config export.
+export const THREAD_CONFIG = CPU_PROFILES;
+
 // ─── Inference Parameter Presets ─────────────────────────────────────────────
 //
 // These map directly to node-llama-cpp getLlamaContext() options and
@@ -357,5 +360,3 @@ export function allocateThreads(prompt, deviceState = {}) {
     powerProxyEstimateMs : Math.round(genTimeMs)
   };
 }
-
-export { THREAD_CONFIG };
