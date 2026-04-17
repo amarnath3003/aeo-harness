@@ -128,8 +128,8 @@ export default function BenchmarkPage() {
           <button className="btn primary" onClick={startBenchmark} disabled={isLoading}>
             {status === 'starting' ? 'Starting...' : status === 'running' ? 'Running...' : 'Run Full Benchmark'}
           </button>
-          <button className="btn" onClick={api.exportCSV}>Export CSV</button>
-          <button className="btn" onClick={api.exportJSON}>Export JSON</button>
+          <button className="btn" onClick={api.exportCSV}>Paper CSV</button>
+          <button className="btn" onClick={api.exportJSON}>Paper JSON</button>
 
           {isLoading && (
             <div style={{ flex: 1 }}>

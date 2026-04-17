@@ -131,6 +131,17 @@ export default function ChartsPage({ telemetrySamples }) {
   return (
     <div style={{ overflow: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
 
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '2px 2px 0' }}>
+        <div>
+          <div className="section-label" style={{ marginBottom: 2 }}>Analytics Export</div>
+          <div style={{ fontSize: 12, color: 'var(--text2)' }}>Download the chart dataset and telemetry summary in paper-ready CSV or JSON.</div>
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+          <button className="btn" onClick={api.exportAnalyticsPaperCSV}>Paper CSV</button>
+          <button className="btn" onClick={api.exportAnalyticsPaperJSON}>Paper JSON</button>
+        </div>
+      </div>
+
       {/* Row 1: Power proxy comparison + Thread allocation */}
       <div className="charts-grid">
 
