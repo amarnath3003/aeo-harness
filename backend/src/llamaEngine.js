@@ -213,9 +213,8 @@ export class LlamaEngine extends EventEmitter {
 
     // Simulate realistic token-by-token generation with thread-dependent speed
     // More threads = faster generation (diminishing returns after 4)
-    const baseDelay = 80; // ms per token at 1 thread
     const speedFactor = Math.min(threads, 6) / 4; // 4 threads = baseline
-    const msPerToken = baseDelay / speedFactor;
+    const msPerWord = Math.round(20 / speedFactor);
     const promptEvalMs = 200 + (800 / threads); // prompt eval faster with more threads
     const words = mockText.split(' ');
     const tokenCount = Math.ceil(words.length * 1.3);
@@ -227,7 +226,7 @@ export class LlamaEngine extends EventEmitter {
 
     // Simulate streaming token generation
     for (const word of words) {
-      await new Promise(r => setTimeout(r, msPerToken + Math.random() * 20));
+      await new Promise(r => setTimeout(r, msPerWord + Math.random() * 10));
       const chunk = `${word} `;
       if (onToken) onToken(chunk);
       this.emit('token', chunk);
