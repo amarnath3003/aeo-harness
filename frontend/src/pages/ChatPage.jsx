@@ -103,11 +103,10 @@ export default function ChatPage({ aeoEnabled, deviceState }) {
         content: `Error: ${err.response?.data?.error || err.message}. Is the backend running?`,
         meta: { error: true }
       }]);
-      resetStages();
+    } finally {
+      setLoading(false);
+      setTimeout(resetStages, 2500);
     }
-
-    setLoading(false);
-    setTimeout(resetStages, 3000);
   }
 
   function handleKey(e) {
