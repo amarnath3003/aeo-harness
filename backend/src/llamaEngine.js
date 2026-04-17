@@ -100,9 +100,8 @@ export class LlamaEngine extends EventEmitter {
       onToken = null, // streaming callback
     } = options;
 
-    const fullPrompt = systemPrompt
-      ? `<start_of_turn>user\n${prompt}<end_of_turn>\n<start_of_turn>model\n`
-      : prompt;
+    // Intentionally pass raw user text; LlamaChatSession handles the chat template.
+    void systemPrompt;
 
     const inferStart = process.hrtime.bigint();
     let firstTokenTime = null;
@@ -111,7 +110,7 @@ export class LlamaEngine extends EventEmitter {
 
     if (!this.isLoaded) {
       // MOCK mode — simulate realistic latencies for development/demo
-      return this._mockInfer(prompt, threads, inferStart);
+      return this._mockInfer(prompt, threads, inferStart, { onToken });
     }
 
     this.isGenerating = true;
@@ -119,7 +118,7 @@ export class LlamaEngine extends EventEmitter {
     try {
       const promptEvalStart = process.hrtime.bigint();
 
-      await this.session.prompt(fullPrompt, {
+      await this.session.prompt(prompt, {
         maxTokens,
         onToken: (chunk) => {
           const now = process.hrtime.bigint();
@@ -168,8 +167,12 @@ export class LlamaEngine extends EventEmitter {
    * Mock inference for development without a model file.
    * Simulates realistic latency curves based on thread count.
    */
-  async _mockInfer(prompt, threads, inferStart) {
+  async _mockInfer(prompt, threads, inferStart, options = {}) {
+    const { onToken = null } = options;
+
     const mockResponses = {
+      hi: 'Hello. Tell me your situation and I will give a concise survival plan.',
+      hello: 'Hello. Tell me your situation and I will give a concise survival plan.',
       wound: "Apply direct pressure immediately with clean cloth. Elevate the limb above heart level. If arterial bleeding, apply tourniquet 2-3 inches above wound. Do not remove once applied. Mark time of application.",
       fire: "Use the bow-drill or flint-and-steel method. Prepare tinder bundle (dry grass, bark shreds), kindling (pencil-sized sticks), and fuel wood. Strike sparks into tinder, blow gently, add kindling progressively.",
       water: "Prioritize moving water over stagnant. Filter through cloth, then boil 1 minute (3 minutes above 2000m). Look for animal trails leading downhill — they often lead to water sources.",
@@ -196,11 +199,14 @@ export class LlamaEngine extends EventEmitter {
     // Simulate prompt eval phase
     await new Promise(r => setTimeout(r, promptEvalMs));
     const firstTokenTime = process.hrtime.bigint();
+    this.emit('prompt_eval_done', promptEvalMs);
 
     // Simulate streaming token generation
     for (const word of words) {
       await new Promise(r => setTimeout(r, msPerToken + Math.random() * 20));
-      this.emit('token', word + ' ');
+      const chunk = `${word} `;
+      if (onToken) onToken(chunk);
+      this.emit('token', chunk);
     }
 
     const endTime = process.hrtime.bigint();
