@@ -2,6 +2,33 @@ import axios from 'axios';
 
 const BASE = '/api';
 
+function parseFilename(contentDisposition, fallbackName) {
+  const match = contentDisposition?.match(/filename\*?=(?:UTF-8''|\")?([^;\"\n]+)/i);
+  if (!match?.[1]) return fallbackName;
+  try {
+    return decodeURIComponent(match[1].replace(/\"/g, '').trim());
+  } catch {
+    return match[1].replace(/\"/g, '').trim();
+  }
+}
+
+async function downloadBenchmarkExport(format) {
+  const response = await axios.get(`${BASE}/benchmark/export/${format}`, {
+    responseType: 'blob'
+  });
+
+  const fallbackName = `aeo_benchmark_${Date.now()}.${format}`;
+  const fileName = parseFilename(response.headers['content-disposition'], fallbackName);
+  const blobUrl = window.URL.createObjectURL(response.data);
+  const anchor = document.createElement('a');
+  anchor.href = blobUrl;
+  anchor.download = fileName;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.URL.revokeObjectURL(blobUrl);
+}
+
 export const api = {
   getStatus: () => axios.get(`${BASE}/status`).then(r => r.data),
 
@@ -30,13 +57,9 @@ export const api = {
   clearCache: () =>
     axios.post(`${BASE}/aeo/cache/clear`).then(r => r.data),
 
-  exportCSV: () => {
-    window.open(`${BASE}/benchmark/export/csv`, '_blank');
-  },
+  exportCSV: () => downloadBenchmarkExport('csv'),
 
-  exportJSON: () => {
-    window.open(`${BASE}/benchmark/export/json`, '_blank');
-  }
+  exportJSON: () => downloadBenchmarkExport('json')
 };
 
 export function createBenchmarkStream(onEvent) {

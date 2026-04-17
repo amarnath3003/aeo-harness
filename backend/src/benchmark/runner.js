@@ -173,7 +173,7 @@ export class BenchmarkRunner extends EventEmitter {
           thread_count: 0,
           prompt_eval_time_sec: 0,
           time_to_first_token_sec: 0.001, // near-instant
-          generation_rate_tps: Infinity,
+          generation_rate_tps: 'Infinity',
           total_generation_time_sec: 0.001,
           power_proxy_core_seconds: 0,
           cache_hit: true,
@@ -297,7 +297,7 @@ export class BenchmarkRunner extends EventEmitter {
 
     for (const tc of TEST_CORPUS) {
       // Baseline first
-      this.emit('progress', { completed, total: totalRuns, pipeline: 'Baseline', testId: tc.id });
+      this.emit('progress', { completed, total: totalRuns, pipeline: 'Baseline', testId: tc.id, threads: 4 });
       try {
         await this.runSingle(tc, 'Baseline', { ...deviceState });
       } catch(e) {
@@ -313,7 +313,13 @@ export class BenchmarkRunner extends EventEmitter {
       await new Promise(r => setTimeout(r, 200));
 
       // AEO pipeline
-      this.emit('progress', { completed, total: totalRuns, pipeline: 'AEO', testId: tc.id });
+      this.emit('progress', {
+        completed,
+        total: totalRuns,
+        pipeline: 'AEO',
+        testId: tc.id,
+        threads: tc.expectedAeoThreads ?? 4
+      });
       try {
         await this.runSingle(tc, 'AEO', { ...deviceState });
       } catch(e) {
@@ -351,11 +357,16 @@ export class BenchmarkRunner extends EventEmitter {
   exportCSV() {
     if (this.results.length === 0) return '';
     const headers = Object.keys(this.results[0]);
+    const escapeCsv = (value) => {
+      if (value === null || value === undefined) return '';
+      const str = String(value);
+      if (/[",\n\r]/.test(str)) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
     const rows = this.results.map(r =>
-      headers.map(h => {
-        const v = r[h];
-        return typeof v === 'string' && v.includes(',') ? `"${v}"` : v;
-      }).join(',')
+      headers.map(h => escapeCsv(r[h])).join(',')
     );
     return [headers.join(','), ...rows].join('\n');
   }

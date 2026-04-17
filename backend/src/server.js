@@ -188,7 +188,7 @@ app.post('/api/benchmark/start', async (req, res) => {
   benchmarkRunner.on('progress', (d) => {
     const payload = JSON.stringify({ event: 'progress', ...d });
     benchmarkClients.forEach(c => c.write(`data: ${payload}\n\n`));
-    telemetry.notifyRunStart(d.pipeline, 4);
+    telemetry.notifyRunStart(d.pipeline, d.threads ?? 4);
   });
 
   benchmarkRunner.on('result', (d) => {
@@ -235,8 +235,10 @@ app.get('/api/benchmark/export/csv', (req, res) => {
 
 // Export JSON
 app.get('/api/benchmark/export/json', (req, res) => {
+  const json = benchmarkRunner?.exportJSON() ?? '[]';
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Content-Disposition', `attachment; filename="aeo_benchmark_${Date.now()}.json"`);
-  res.json(benchmarkRunner?.getResults() ?? []);
+  res.send(json);
 });
 
 // Test corpus definition
