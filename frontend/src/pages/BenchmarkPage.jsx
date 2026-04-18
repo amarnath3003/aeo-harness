@@ -72,7 +72,7 @@ export default function BenchmarkPage() {
     setLog(l => [...l.slice(-200), { msg, type, ts: new Date().toLocaleTimeString() }]);
   }
 
-  async function startBenchmark() {
+  async function startBenchmark(mode = 'full') {
     if (status === 'starting' || status === 'running') return;
     setResults([]);
     setCacheResults([]);
@@ -115,7 +115,11 @@ export default function BenchmarkPage() {
     });
 
     try {
-      await api.startBenchmark();
+      if (mode === 'cache-only') {
+        await api.startCacheBenchmark();
+      } else {
+        await api.startBenchmark();
+      }
       pollIntervalRef.current = setInterval(async () => {
         try {
           const data = await api.getResults();
@@ -218,6 +222,9 @@ export default function BenchmarkPage() {
         <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg1)', display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
           <button className="btn primary" onClick={startBenchmark} disabled={isLoading}>
             {status === 'starting' ? 'Starting...' : status === 'running' ? 'Running...' : 'Run Full Benchmark'}
+          </button>
+          <button className="btn" onClick={() => startBenchmark('cache-only')} disabled={isLoading}>
+            Run Cache Only
           </button>
           <button className="btn" onClick={api.exportCSV}>Paper CSV</button>
           <button className="btn" onClick={api.exportJSON}>Paper JSON</button>
