@@ -200,7 +200,11 @@ app.post('/api/benchmark/start', async (req, res) => {
   });
 
   benchmarkRunner.on('complete', (d) => {
-    const payload = JSON.stringify({ event: 'complete', count: d.results.length });
+    const payload = JSON.stringify({
+      event: 'complete',
+      count: d.results.length,
+      cacheSummary: d.cacheSummary ?? null
+    });
     benchmarkClients.forEach(c => c.write(`data: ${payload}\n\n`));
   });
 
@@ -224,7 +228,9 @@ app.get('/api/benchmark/stream', (req, res) => {
 // Get completed results
 app.get('/api/benchmark/results', (req, res) => {
   const results = benchmarkRunner?.getResults() ?? [];
-  res.json({ results, count: results.length });
+  const cacheResults = benchmarkRunner?.getCacheScenarioResults?.() ?? [];
+  const cacheSummary = benchmarkRunner?.getCacheBenchmarkSummary?.() ?? null;
+  res.json({ results, cacheResults, count: results.length, cacheSummary });
 });
 
 // Export CSV
@@ -237,7 +243,7 @@ app.get('/api/benchmark/export/csv', (req, res) => {
 
 // Export JSON
 app.get('/api/benchmark/export/json', (req, res) => {
-  const json = benchmarkRunner?.exportJSON() ?? '[]';
+  const json = benchmarkRunner?.exportJSON() ?? JSON.stringify({ results: [], cacheResults: [], cacheSummary: null }, null, 2);
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Content-Disposition', `attachment; filename="aeo_benchmark_${Date.now()}.json"`);
   res.send(json);

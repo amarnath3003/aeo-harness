@@ -18,6 +18,12 @@ import { generateVerboseSensorData } from '../aeo/tokenPruner.js';
 import si from 'systeminformation';
 import { EventEmitter } from 'events';
 
+const SCOPE_ISOLATION_CHAT_PRESEED = {
+  query: 'How do I signal rescuers at night in open terrain?',
+  sensorContext: 'night ridge camp, clear sky, no storm cells, low tree cover',
+  response: 'Use three spaced signal fires and periodic whistle bursts from open ground.'
+};
+
 export const TEST_CORPUS = [
   // ── CATEGORY A: HIGH URGENCY ────────────────────────────────────────────────
   {
@@ -81,31 +87,108 @@ export const TEST_CORPUS = [
 
   // ── CATEGORY D: CACHE TEST ──────────────────────────────────────────────────
   {
-    id: 'D1',
+    id: 'D1A',
     category: 'D',
-    categoryLabel: 'Cache-Test-Run1',
+    categoryLabel: 'Cache-Exact-Seed',
     query: 'How do I start a fire in wet conditions?',
     sensorContext: '',
     expectedAeoThreads: 4,
-    description: 'First run — populates cache, no hit expected'
+    cacheScenario: 'exact-seed',
+    expectedCacheOutcome: 'miss',
+    cacheScenarioGroup: 'exact',
+    scenarioNotes: 'Cold run to populate benchmark scope cache key.',
+    description: 'Exact cache scenario seed — cold miss expected'
   },
   {
-    id: 'D2',
+    id: 'D1B',
     category: 'D',
-    categoryLabel: 'Cache-Test-Run2',
-    query: 'How do I start a fire in wet conditions?', // exact repeat → guaranteed cache hit
-    sensorContext: '',
-    expectedAeoThreads: 0, // 0 = served from cache (0 compute threads)
-    description: 'Second run — should return instantly from cache (0 compute)'
-  },
-  {
-    id: 'D3',
-    category: 'D',
-    categoryLabel: 'Cache-Test-Semantic',
-    query: 'What is the best method to ignite a fire when the wood is wet?', // semantic match
+    categoryLabel: 'Cache-Exact-Hit',
+    query: 'How do I start a fire in wet conditions?',
     sensorContext: '',
     expectedAeoThreads: 0,
-    description: 'Semantic variant — should still hit cache via Jaccard similarity'
+    cacheScenario: 'exact-repeat',
+    expectedCacheOutcome: 'hit',
+    cacheScenarioGroup: 'exact',
+    scenarioNotes: 'Exact query repeat should hit benchmark scope cache.',
+    description: 'Exact cache scenario repeat — hit expected'
+  },
+  {
+    id: 'D2A',
+    category: 'D',
+    categoryLabel: 'Cache-Semantic-Seed',
+    query: 'How can I purify stream water for drinking while hiking?',
+    sensorContext: '',
+    expectedAeoThreads: 4,
+    cacheScenario: 'semantic-seed',
+    expectedCacheOutcome: 'miss',
+    cacheScenarioGroup: 'semantic',
+    scenarioNotes: 'Cold semantic pair seed in benchmark scope.',
+    description: 'Semantic cache scenario seed — miss expected'
+  },
+  {
+    id: 'D2B',
+    category: 'D',
+    categoryLabel: 'Cache-Semantic-Hit',
+    query: 'How do I purify stream water so it is safe to drink while hiking?',
+    sensorContext: '',
+    expectedAeoThreads: 0,
+    cacheScenario: 'semantic-paraphrase',
+    expectedCacheOutcome: 'hit',
+    cacheScenarioGroup: 'semantic',
+    scenarioNotes: 'Paraphrase should resolve through semantic cache matching.',
+    description: 'Semantic cache scenario paraphrase — hit expected'
+  },
+  {
+    id: 'D3A',
+    category: 'D',
+    categoryLabel: 'Cache-Context-Seed',
+    query: 'Should I shelter now or keep moving?',
+    sensorContext: 'context alpha: alpine ridge, blizzard front, wind gusts 48 kph, temp minus 8 c, pressure dropping rapidly',
+    expectedAeoThreads: 4,
+    cacheScenario: 'context-seed-alpha',
+    expectedCacheOutcome: 'miss',
+    cacheScenarioGroup: 'contextVariant',
+    scenarioNotes: 'Initial context key seed with severe-cold profile.',
+    description: 'Context-variant baseline seed — miss expected'
+  },
+  {
+    id: 'D3B',
+    category: 'D',
+    categoryLabel: 'Cache-Context-Variant',
+    query: 'Should I shelter now or keep moving?',
+    sensorContext: 'context beta: canyon floor, heat stress, humidity 88 pct, temp 34 c, pressure stable, no wind, bright sun exposure',
+    expectedAeoThreads: 4,
+    cacheScenario: 'context-variant-beta',
+    expectedCacheOutcome: 'miss',
+    cacheScenarioGroup: 'contextVariant',
+    scenarioNotes: 'Same query with materially different context should not match alpha.',
+    description: 'Context-variant altered context — miss expected'
+  },
+  {
+    id: 'D4A',
+    category: 'D',
+    categoryLabel: 'Cache-Scope-Isolation-Miss',
+    query: SCOPE_ISOLATION_CHAT_PRESEED.query,
+    sensorContext: SCOPE_ISOLATION_CHAT_PRESEED.sensorContext,
+    expectedAeoThreads: 4,
+    cacheScenario: 'scope-isolation-initial',
+    expectedCacheOutcome: 'miss',
+    cacheScenarioGroup: 'scopeIsolation',
+    scenarioNotes: 'Pre-seeded in chat scope only; benchmark scope must remain cold.',
+    description: 'Scope isolation first benchmark run — miss expected'
+  },
+  {
+    id: 'D4B',
+    category: 'D',
+    categoryLabel: 'Cache-Scope-Isolation-Hit',
+    query: SCOPE_ISOLATION_CHAT_PRESEED.query,
+    sensorContext: SCOPE_ISOLATION_CHAT_PRESEED.sensorContext,
+    expectedAeoThreads: 0,
+    cacheScenario: 'scope-isolation-repeat',
+    expectedCacheOutcome: 'hit',
+    cacheScenarioGroup: 'scopeIsolation',
+    scenarioNotes: 'Second benchmark-scope run should hit only benchmark scope entry.',
+    description: 'Scope isolation second benchmark run — hit expected'
   }
 ];
 
@@ -115,6 +198,7 @@ export class BenchmarkRunner extends EventEmitter {
     this.engine = llamaEngine;
     this.aeo = aeoOrchestrator;
     this.results = [];
+    this.cacheSummary = this._createEmptyCacheSummary();
     this.isRunning = false;
   }
 
@@ -144,6 +228,10 @@ export class BenchmarkRunner extends EventEmitter {
       category: tc.category,
       category_label: tc.categoryLabel,
       pipeline_used: pipeline,
+      cacheScenario: tc.cacheScenario ?? null,
+      expectedCacheOutcome: tc.expectedCacheOutcome ?? null,
+      cacheScenarioGroup: tc.cacheScenarioGroup ?? null,
+      scenarioNotes: tc.scenarioNotes ?? '',
       query: tc.query,
       device_battery_pct: deviceState.batteryPct,
       device_ram_pct: (deviceState.ramUsedPct * 100).toFixed(1),
@@ -285,6 +373,7 @@ export class BenchmarkRunner extends EventEmitter {
     if (this.isRunning) throw new Error('Benchmark already running');
     this.isRunning = true;
     this.results = [];
+    this.cacheSummary = this._createEmptyCacheSummary();
     const testTimeoutMs = Math.max(
       5000,
       Number.parseInt(process.env.BENCHMARK_TEST_TIMEOUT_MS ?? '90000', 10) || 90000
@@ -308,6 +397,7 @@ export class BenchmarkRunner extends EventEmitter {
 
     try {
       this.aeo.clearCacheScope('benchmark'); // always start benchmark with cold benchmark cache
+      this._preseedChatScopeForIsolation();
 
       const totalRuns = TEST_CORPUS.length * 2;
       let completed = 0;
@@ -356,10 +446,12 @@ export class BenchmarkRunner extends EventEmitter {
         await new Promise(r => setTimeout(r, 300));
       }
 
+      this.cacheSummary = this._buildCacheBenchmarkSummary(this.results);
+
       return this.results;
     } finally {
       this.isRunning = false;
-      this.emit('complete', { results: this.results });
+      this.emit('complete', { results: this.results, cacheSummary: this.cacheSummary });
     }
   }
 
@@ -372,15 +464,153 @@ export class BenchmarkRunner extends EventEmitter {
     }
   }
 
+  _preseedChatScopeForIsolation() {
+    this.aeo.cacheResponse(
+      SCOPE_ISOLATION_CHAT_PRESEED.query,
+      SCOPE_ISOLATION_CHAT_PRESEED.response,
+      SCOPE_ISOLATION_CHAT_PRESEED.sensorContext,
+      'chat'
+    );
+  }
+
+  _calcHitRatePct(hits, totalRuns) {
+    if (!totalRuns) return 0;
+    return Number(((hits / totalRuns) * 100).toFixed(1));
+  }
+
+  _createCountSummary(rows) {
+    const totalRuns = rows.length;
+    const hits = rows.filter((row) => row.cache_hit).length;
+    const misses = totalRuns - hits;
+
+    return {
+      totalRuns,
+      hits,
+      misses,
+      hitRatePct: this._calcHitRatePct(hits, totalRuns)
+    };
+  }
+
+  _createEmptyCacheSummary() {
+    return {
+      generatedAt: null,
+      overall: this._createCountSummary([]),
+      byScenario: {
+        exact: this._createCountSummary([]),
+        semantic: this._createCountSummary([]),
+        contextVariant: this._createCountSummary([]),
+        scopeIsolation: this._createCountSummary([])
+      },
+      expectations: {
+        expectedPassCount: 0,
+        expectedFailCount: 0,
+        totalChecked: 0
+      }
+    };
+  }
+
+  _buildCacheBenchmarkSummary(results) {
+    const scenarioRows = this.getCacheScenarioResults(results);
+
+    const byScenario = {
+      exact: this._createCountSummary(
+        scenarioRows.filter((row) => row.cacheScenarioGroup === 'exact')
+      ),
+      semantic: this._createCountSummary(
+        scenarioRows.filter((row) => row.cacheScenarioGroup === 'semantic')
+      ),
+      contextVariant: this._createCountSummary(
+        scenarioRows.filter((row) => row.cacheScenarioGroup === 'contextVariant')
+      ),
+      scopeIsolation: this._createCountSummary(
+        scenarioRows.filter((row) => row.cacheScenarioGroup === 'scopeIsolation')
+      )
+    };
+
+    const expectationRows = scenarioRows.filter(
+      (row) => row.expectedCacheOutcome === 'hit' || row.expectedCacheOutcome === 'miss'
+    );
+    const expectedPassCount = expectationRows.filter((row) => {
+      const expectedHit = row.expectedCacheOutcome === 'hit';
+      return Boolean(row.cache_hit) === expectedHit;
+    }).length;
+
+    return {
+      generatedAt: new Date().toISOString(),
+      overall: this._createCountSummary(scenarioRows),
+      byScenario,
+      expectations: {
+        expectedPassCount,
+        expectedFailCount: expectationRows.length - expectedPassCount,
+        totalChecked: expectationRows.length
+      }
+    };
+  }
+
+  _cacheSummaryCsvSection(summary, escapeCsv) {
+    const lines = [];
+    lines.push(
+      [
+        'cache_summary_section',
+        'scenario',
+        'totalRuns',
+        'hits',
+        'misses',
+        'hitRatePct',
+        'expectedPassCount',
+        'expectedFailCount'
+      ].join(',')
+    );
+
+    lines.push([
+      'overall',
+      'overall',
+      summary.overall.totalRuns,
+      summary.overall.hits,
+      summary.overall.misses,
+      summary.overall.hitRatePct,
+      summary.expectations.expectedPassCount,
+      summary.expectations.expectedFailCount
+    ].map(escapeCsv).join(','));
+
+    const scenarioOrder = ['exact', 'semantic', 'contextVariant', 'scopeIsolation'];
+    for (const scenario of scenarioOrder) {
+      const item = summary.byScenario[scenario] ?? this._createCountSummary([]);
+      lines.push([
+        'scenario',
+        scenario,
+        item.totalRuns,
+        item.hits,
+        item.misses,
+        item.hitRatePct,
+        '',
+        ''
+      ].map(escapeCsv).join(','));
+    }
+
+    return lines;
+  }
+
   getResults() { return this.results; }
 
+  getCacheScenarioResults(sourceResults = this.results) {
+    return sourceResults.filter(
+      (row) => row.pipeline_used === 'AEO' && row.cacheScenario
+    );
+  }
+
+  getCacheBenchmarkSummary() { return this.cacheSummary; }
+
   exportJSON() {
-    return JSON.stringify(this.results, null, 2);
+    return JSON.stringify({
+      results: this.results,
+      cacheResults: this.getCacheScenarioResults(this.results),
+      cacheSummary: this.cacheSummary
+    }, null, 2);
   }
 
   exportCSV() {
-    if (this.results.length === 0) return '';
-    const headers = Object.keys(this.results[0]);
+    const summary = this.cacheSummary ?? this._createEmptyCacheSummary();
     const escapeCsv = (value) => {
       if (value === null || value === undefined) return '';
       const str = String(value);
@@ -389,9 +619,16 @@ export class BenchmarkRunner extends EventEmitter {
       }
       return str;
     };
+
+    const summarySection = this._cacheSummaryCsvSection(summary, escapeCsv);
+    if (this.results.length === 0) {
+      return [...summarySection, '', 'no_results'].join('\n');
+    }
+
+    const headers = Object.keys(this.results[0]);
     const rows = this.results.map(r =>
       headers.map(h => escapeCsv(r[h])).join(',')
     );
-    return [headers.join(','), ...rows].join('\n');
+    return [...summarySection, '', headers.join(','), ...rows].join('\n');
   }
 }

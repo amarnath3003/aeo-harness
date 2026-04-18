@@ -13,14 +13,51 @@ const PIPELINE_COLORS = {
   Baseline: 'var(--blue)',
 };
 
+function asNumber(value, fallback = 0) {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : fallback;
+}
+
+function computeFallbackCacheSummary(cacheResults) {
+  const scenarioRows = Array.isArray(cacheResults) ? cacheResults : [];
+  const hits = scenarioRows.filter((row) => row.cache_hit).length;
+  const totalRuns = scenarioRows.length;
+  const misses = Math.max(0, totalRuns - hits);
+
+  return {
+    totalRuns,
+    hits,
+    misses,
+    hitRatePct: totalRuns > 0 ? Number(((hits / totalRuns) * 100).toFixed(1)) : 0,
+  };
+}
+
+function resolveCacheSummary(cacheSummary, cacheResults) {
+  const overall = cacheSummary?.overall;
+  if (!overall) return computeFallbackCacheSummary(cacheResults);
+
+  const totalRuns = asNumber(overall.totalRuns, 0);
+  const hits = asNumber(overall.hits, 0);
+  const misses = asNumber(overall.misses, Math.max(0, totalRuns - hits));
+  const hitRatePct = asNumber(
+    overall.hitRatePct,
+    totalRuns > 0 ? Number(((hits / totalRuns) * 100).toFixed(1)) : 0
+  );
+
+  return { totalRuns, hits, misses, hitRatePct };
+}
+
 export default function BenchmarkPage() {
   const [status, setStatus] = useState('idle'); // idle | starting | running | done | error
   const [progress, setProgress] = useState({ completed: 0, total: 0, pipeline: '', testId: '' });
   const [results, setResults] = useState([]);
+  const [cacheResults, setCacheResults] = useState([]);
+  const [cacheSummary, setCacheSummary] = useState(null);
   const [log, setLog] = useState([]);
   const eventSource = useRef(null);
   const tableRef = useRef(null);
   const pollIntervalRef = useRef(null);
+  const completionCacheLogRef = useRef(false);
 
   function mergeResults(existing, incoming) {
     const byKey = new Map();
@@ -38,9 +75,12 @@ export default function BenchmarkPage() {
   async function startBenchmark() {
     if (status === 'starting' || status === 'running') return;
     setResults([]);
+    setCacheResults([]);
+    setCacheSummary(null);
     setLog([]);
     setStatus('starting');
     setProgress({ completed: 0, total: 0, pipeline: '', testId: '' });
+    completionCacheLogRef.current = false;
 
     // Open SSE stream first
     eventSource.current?.close();
@@ -64,6 +104,9 @@ export default function BenchmarkPage() {
         setTimeout(() => tableRef.current?.scrollTo(0, tableRef.current.scrollHeight), 50);
       } else if (event.event === 'complete') {
         addLog(`Benchmark complete — ${event.count} records collected`, 'success');
+        if (event.cacheSummary) {
+          setCacheSummary(event.cacheSummary);
+        }
         setStatus('done');
       } else if (event.event === 'error') {
         addLog(`Error: ${event.message}`, 'error');
@@ -77,6 +120,8 @@ export default function BenchmarkPage() {
         try {
           const data = await api.getResults();
           const incoming = data?.results || [];
+          setCacheResults(data?.cacheResults || []);
+          setCacheSummary(data?.cacheSummary ?? null);
           if (incoming.length > 0) {
             setResults(prev => mergeResults(prev, incoming));
             setStatus(s => (s === 'starting' ? 'running' : s));
@@ -104,6 +149,8 @@ export default function BenchmarkPage() {
         const data = await api.getResults();
         if (cancelled) return;
         const existing = data?.results || [];
+        setCacheResults(data?.cacheResults || []);
+        setCacheSummary(data?.cacheSummary ?? null);
         if (existing.length > 0) {
           setResults(existing);
           setStatus('done');
@@ -132,10 +179,25 @@ export default function BenchmarkPage() {
     }
   }, [status]);
 
+  useEffect(() => {
+    if (status !== 'done') {
+      completionCacheLogRef.current = false;
+      return;
+    }
+
+    if (completionCacheLogRef.current) return;
+
+    const summary = resolveCacheSummary(cacheSummary, cacheResults);
+    if (summary.totalRuns > 0) {
+      addLog(`Cache hit rate final: ${summary.hitRatePct.toFixed(1)}% (${summary.hits}/${summary.totalRuns})`, 'info');
+      completionCacheLogRef.current = true;
+    }
+  }, [status, cacheSummary, cacheResults]);
+
   // Summary stats
   const aeoResults = results.filter(r => r.pipeline_used === 'AEO');
   const baseResults = results.filter(r => r.pipeline_used === 'Baseline');
-  const cacheHits = aeoResults.filter(r => r.cache_hit).length;
+  const cacheBenchmarkSummary = resolveCacheSummary(cacheSummary, cacheResults);
 
   const avg = (arr, key) => arr.length === 0 ? 0 : (arr.reduce((s, r) => s + (Number(r[key]) || 0), 0) / arr.length);
 
@@ -195,7 +257,13 @@ export default function BenchmarkPage() {
         {results.length > 0 && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 8, padding: '10px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg1)', flexShrink: 0 }}>
             {[
-              { label: 'Cache Hits', value: cacheHits, suffix: '', color: 'var(--purple)' },
+              {
+                label: 'Cache Hit Rate',
+                value: cacheBenchmarkSummary.hitRatePct.toFixed(1),
+                suffix: '%',
+                color: 'var(--purple)',
+                note: `${cacheBenchmarkSummary.hits}/${cacheBenchmarkSummary.totalRuns} scenario hits`
+              },
               { label: 'AEO avg TPS', value: aeoTPS.toFixed(1), suffix: ' t/s', color: 'var(--green)' },
               { label: 'Baseline avg TPS', value: baseTPS.toFixed(1), suffix: ' t/s', color: 'var(--blue)' },
               { label: 'AEO power', value: aeoPower.toFixed(2), suffix: ' cs', color: 'var(--green)' },
@@ -204,6 +272,7 @@ export default function BenchmarkPage() {
               <div key={i} className="metric-card" style={{ padding: '8px 12px' }}>
                 <div className="metric-label">{s.label}</div>
                 <div className="metric-value" style={{ fontSize: 18, color: s.color }}>{s.value}{s.suffix}</div>
+                {s.note && <div style={{ fontSize: 11, color: 'var(--text2)' }}>{s.note}</div>}
               </div>
             ))}
           </div>

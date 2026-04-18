@@ -162,6 +162,10 @@ export class SemanticCache {
     let bestSim   = 0;
 
     for (const [key, entry] of this.store) {
+      if (this._scopeOf(key) !== scope) {
+        continue;
+      }
+
       // Lazy TTL eviction
       if (now - entry.createdAt > this.ttlMs) {
         this.store.delete(key);
