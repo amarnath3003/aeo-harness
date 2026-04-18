@@ -232,11 +232,19 @@ export default function BenchmarkPage() {
   const cacheBenchmarkSummary = resolveCacheSummary(cacheSummary, cacheResults);
 
   const avg = (arr, key) => arr.length === 0 ? 0 : (arr.reduce((s, r) => s + (Number(r[key]) || 0), 0) / arr.length);
+  const avgRamUplift = (arr) => arr.length === 0
+    ? 0
+    : (arr.reduce((sum, row) => sum + Math.max(0, Number(row.ram_delta_mb) || 0), 0) / arr.length);
 
   const aeoTPS = avg(aeoResults.filter(r => !r.cache_hit), 'generation_rate_tps');
   const baseTPS = avg(baseResults, 'generation_rate_tps');
   const aeoPower = avg(aeoResults, 'power_proxy_core_seconds');
   const basePower = avg(baseResults, 'power_proxy_core_seconds');
+  const aeoRamUplift = avgRamUplift(aeoResults);
+  const baseRamUplift = avgRamUplift(baseResults);
+  const memoryReductionPct = baseRamUplift > 0
+    ? ((baseRamUplift - aeoRamUplift) / baseRamUplift * 100).toFixed(1)
+    : '0';
   const powerSavingPct = basePower > 0 ? ((basePower - aeoPower) / basePower * 100).toFixed(1) : '0';
   const isLoading = status === 'starting' || status === 'running';
 
@@ -290,7 +298,7 @@ export default function BenchmarkPage() {
 
         {/* Summary stat row */}
         {results.length > 0 && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 8, padding: '10px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg1)', flexShrink: 0 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6,1fr)', gap: 8, padding: '10px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg1)', flexShrink: 0 }}>
             {[
               {
                 label: 'Cache Expected-Hit Success',
@@ -301,6 +309,13 @@ export default function BenchmarkPage() {
               },
               { label: 'AEO avg TPS', value: aeoTPS.toFixed(1), suffix: ' t/s', color: 'var(--green)' },
               { label: 'Baseline avg TPS', value: baseTPS.toFixed(1), suffix: ' t/s', color: 'var(--blue)' },
+              {
+                label: 'Memory Reduction',
+                value: `${memoryReductionPct}%`,
+                suffix: '',
+                color: parseFloat(memoryReductionPct) >= 0 ? 'var(--green)' : 'var(--red)',
+                note: `AEO ${aeoRamUplift.toFixed(1)} MB vs Baseline ${baseRamUplift.toFixed(1)} MB`
+              },
               { label: 'AEO power', value: aeoPower.toFixed(2), suffix: ' cs', color: 'var(--green)' },
               { label: 'Power saving', value: `${powerSavingPct}%`, suffix: '', color: parseFloat(powerSavingPct) > 0 ? 'var(--green)' : 'var(--red)' },
             ].map((s, i) => (
