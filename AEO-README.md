@@ -110,7 +110,7 @@ Scans the prompt for urgency keywords and reads device state to assign CPU threa
 | Low urgency or battery < 35% | 2 |
 | Critical battery (< 15%) | 1 (MIN) |
 
-Thread count is passed directly to `node-llama-cpp`'s context creation, which maps 1:1 to `llama.cpp`'s `--threads` flag.
+Thread count is passed directly to `node-llama-cpp`'s context creation and maps 1:1 to `llama.cpp`'s `--threads` flag.
 
 ---
 
