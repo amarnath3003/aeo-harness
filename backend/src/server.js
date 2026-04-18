@@ -64,6 +64,34 @@ function initSSE(req, res) {
   return hb;
 }
 
+function wireBenchmarkEvents(runner) {
+  runner.on('start', (d) => {
+    const payload = JSON.stringify({ event: 'start', ...d });
+    benchmarkClients.forEach(c => c.write(`data: ${payload}\n\n`));
+  });
+
+  runner.on('progress', (d) => {
+    const payload = JSON.stringify({ event: 'progress', ...d });
+    benchmarkClients.forEach(c => c.write(`data: ${payload}\n\n`));
+    telemetry.notifyRunStart(d.pipeline, d.threads ?? 4);
+  });
+
+  runner.on('result', (d) => {
+    const payload = JSON.stringify({ event: 'result', result: d });
+    benchmarkClients.forEach(c => c.write(`data: ${payload}\n\n`));
+    telemetry.notifyRunEnd(d.pipeline_used);
+  });
+
+  runner.on('complete', (d) => {
+    const payload = JSON.stringify({
+      event: 'complete',
+      count: d.results.length,
+      cacheSummary: d.cacheSummary ?? null
+    });
+    benchmarkClients.forEach(c => c.write(`data: ${payload}\n\n`));
+  });
+}
+
 // ── Routes ───────────────────────────────────────────────────────────────────
 
 app.get('/api/status', (req, res) => {
@@ -180,39 +208,31 @@ app.post('/api/benchmark/start', async (req, res) => {
   }
 
   benchmarkRunner = new BenchmarkRunner(engine, aeo);
-
-  // Wire events → SSE clients
-  benchmarkRunner.on('start', (d) => {
-    const payload = JSON.stringify({ event: 'start', ...d });
-    benchmarkClients.forEach(c => c.write(`data: ${payload}\n\n`));
-  });
-
-  benchmarkRunner.on('progress', (d) => {
-    const payload = JSON.stringify({ event: 'progress', ...d });
-    benchmarkClients.forEach(c => c.write(`data: ${payload}\n\n`));
-    telemetry.notifyRunStart(d.pipeline, d.threads ?? 4);
-  });
-
-  benchmarkRunner.on('result', (d) => {
-    const payload = JSON.stringify({ event: 'result', result: d });
-    benchmarkClients.forEach(c => c.write(`data: ${payload}\n\n`));
-    telemetry.notifyRunEnd(d.pipeline_used);
-  });
-
-  benchmarkRunner.on('complete', (d) => {
-    const payload = JSON.stringify({
-      event: 'complete',
-      count: d.results.length,
-      cacheSummary: d.cacheSummary ?? null
-    });
-    benchmarkClients.forEach(c => c.write(`data: ${payload}\n\n`));
-  });
+  wireBenchmarkEvents(benchmarkRunner);
 
   res.json({ started: true, tests: TEST_CORPUS.length, message: 'Stream /api/benchmark/stream for live events' });
 
   // Run async
   benchmarkRunner.runFull().catch(err => {
     console.error('Benchmark error:', err);
+    const payload = JSON.stringify({ event: 'error', message: err.message });
+    benchmarkClients.forEach(c => c.write(`data: ${payload}\n\n`));
+  });
+});
+
+app.post('/api/benchmark/start-cache', async (req, res) => {
+  if (benchmarkRunner?.isRunning) {
+    return res.status(409).json({ error: 'Benchmark already running' });
+  }
+
+  benchmarkRunner = new BenchmarkRunner(engine, aeo);
+  wireBenchmarkEvents(benchmarkRunner);
+
+  const cacheTestCount = TEST_CORPUS.filter((tc) => tc.cacheScenario).length;
+  res.json({ started: true, tests: cacheTestCount, mode: 'cache-only', message: 'Stream /api/benchmark/stream for live events' });
+
+  benchmarkRunner.runCacheOnly().catch(err => {
+    console.error('Cache benchmark error:', err);
     const payload = JSON.stringify({ event: 'error', message: err.message });
     benchmarkClients.forEach(c => c.write(`data: ${payload}\n\n`));
   });

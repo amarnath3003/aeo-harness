@@ -370,6 +370,18 @@ export class BenchmarkRunner extends EventEmitter {
    * Order: Baseline first, then AEO (cache starts cold).
    */
   async runFull(onProgress = null) {
+    return this._runCorpus(TEST_CORPUS, onProgress);
+  }
+
+  /**
+   * Run only cache benchmark scenarios (Category D) through BOTH pipelines.
+   */
+  async runCacheOnly(onProgress = null) {
+    const cacheCorpus = TEST_CORPUS.filter((tc) => tc.cacheScenario);
+    return this._runCorpus(cacheCorpus, onProgress);
+  }
+
+  async _runCorpus(corpus, onProgress = null) {
     if (this.isRunning) throw new Error('Benchmark already running');
     this.isRunning = true;
     this.results = [];
@@ -399,7 +411,7 @@ export class BenchmarkRunner extends EventEmitter {
       this.aeo.clearCacheScope('benchmark'); // always start benchmark with cold benchmark cache
       this._preseedChatScopeForIsolation();
 
-      const totalRuns = TEST_CORPUS.length * 2;
+      const totalRuns = corpus.length * 2;
       let completed = 0;
 
       // Simulate realistic device state that drifts over time
@@ -407,7 +419,7 @@ export class BenchmarkRunner extends EventEmitter {
 
       this.emit('start', { total: totalRuns });
 
-      for (const tc of TEST_CORPUS) {
+      for (const tc of corpus) {
         // Baseline first
         this.emit('progress', { completed, total: totalRuns, pipeline: 'Baseline', testId: tc.id, threads: 4 });
         try {

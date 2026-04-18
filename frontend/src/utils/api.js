@@ -584,6 +584,9 @@ export const api = {
   startBenchmark: () =>
     axios.post(`${BASE}/benchmark/start`).then(r => r.data),
 
+  startCacheBenchmark: () =>
+    axios.post(`${BASE}/benchmark/start-cache`).then(r => r.data),
+
   getResults: () =>
     axios.get(`${BASE}/benchmark/results`).then(r => r.data),
 
