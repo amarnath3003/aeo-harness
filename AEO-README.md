@@ -163,7 +163,7 @@ aeo-harness/
 
 | Requirement | Version | Notes |
 |---|---|---|
-| Node.js | ≥ 18.0 | LTS recommended. `node -v` to check. |
+| Node.js | ≥ 18.0 | LTS recommended. Verify your Node version with `node -v`. |
 | npm | ≥ 9.0 | Comes with Node. |
 | RAM | ≥ 4 GB | 2 GB for Q4_K_M model + OS overhead |
 | Disk | ≥ 1.5 GB | For model file |
