@@ -37,7 +37,7 @@ This harness lets you empirically compare two inference pipelines side-by-side:
 | **Baseline** | Static 4-thread execution, raw context passed directly to `llama.cpp` |
 | **AEO** | Full 3-stage middleware (Semantic Cache → Token Pruner → Compute Allocator) before `llama.cpp` |
 
-The automated benchmark runner executes a predefined test corpus through **both** pipelines and records every metric the paper needs:
+The automated benchmark runner executes a predefined test corpus through **both** pipelines and records every metric the paper requires:
 
 - `prompt_eval_time_sec` — how long the model spends processing the input
 - `time_to_first_token_sec` — TTFT latency
