@@ -14,7 +14,7 @@ const PIPELINE_COLORS = {
 };
 
 export default function BenchmarkPage() {
-  const [status, setStatus] = useState('idle'); // idle | running | done
+  const [status, setStatus] = useState('idle'); // idle | starting | running | done | error
   const [progress, setProgress] = useState({ completed: 0, total: 0, pipeline: '', testId: '' });
   const [results, setResults] = useState([]);
   const [log, setLog] = useState([]);
@@ -26,10 +26,10 @@ export default function BenchmarkPage() {
   }
 
   async function startBenchmark() {
-    if (status === 'running') return;
+    if (status === 'starting' || status === 'running') return;
     setResults([]);
     setLog([]);
-    setStatus('running');
+    setStatus('starting');
     setProgress({ completed: 0, total: 0, pipeline: '', testId: '' });
 
     // Open SSE stream first
@@ -37,8 +37,10 @@ export default function BenchmarkPage() {
     eventSource.current = createBenchmarkStream((event) => {
       if (event.event === 'start') {
         addLog(`Benchmark started — ${event.total} runs`, 'info');
+        setStatus('running');
         setProgress(p => ({ ...p, total: event.total }));
       } else if (event.event === 'progress') {
+        if (status !== 'running') setStatus('running');
         setProgress({ completed: event.completed, total: event.total, pipeline: event.pipeline, testId: event.testId });
         addLog(`[${event.testId}] ${event.pipeline} — running...`);
       } else if (event.event === 'result') {
@@ -55,7 +57,7 @@ export default function BenchmarkPage() {
         setStatus('done');
       } else if (event.event === 'error') {
         addLog(`Error: ${event.message}`, 'error');
-        setStatus('done');
+        setStatus('error');
       }
     });
 
@@ -63,7 +65,7 @@ export default function BenchmarkPage() {
       await api.startBenchmark();
     } catch (err) {
       addLog(`Failed to start: ${err.message}`, 'error');
-      setStatus('idle');
+      setStatus('error');
     }
   }
 
@@ -81,6 +83,7 @@ export default function BenchmarkPage() {
   const aeoPower = avg(aeoResults, 'power_proxy_core_seconds');
   const basePower = avg(baseResults, 'power_proxy_core_seconds');
   const powerSavingPct = basePower > 0 ? ((basePower - aeoPower) / basePower * 100).toFixed(1) : '0';
+  const isLoading = status === 'starting' || status === 'running';
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', height: '100%', overflow: 'hidden' }}>
@@ -90,20 +93,24 @@ export default function BenchmarkPage() {
 
         {/* Top controls */}
         <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg1)', display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
-          <button className="btn primary" onClick={startBenchmark} disabled={status === 'running'}>
-            {status === 'running' ? 'Running...' : 'Run Full Benchmark'}
+          <button className="btn primary" onClick={startBenchmark} disabled={isLoading}>
+            {status === 'starting' ? 'Starting...' : status === 'running' ? 'Running...' : 'Run Full Benchmark'}
           </button>
-          <button className="btn" onClick={api.exportCSV} disabled={results.length === 0}>Export CSV</button>
-          <button className="btn" onClick={api.exportJSON} disabled={results.length === 0}>Export JSON</button>
+          <button className="btn" onClick={api.exportCSV} disabled={results.length === 0 || isLoading}>Export CSV</button>
+          <button className="btn" onClick={api.exportJSON} disabled={results.length === 0 || isLoading}>Export JSON</button>
 
-          {status === 'running' && (
+          {isLoading && (
             <div style={{ flex: 1 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, fontSize: 11, color: 'var(--text1)' }}>
-                <span>{progress.pipeline} · {progress.testId}</span>
-                <span>{progress.completed}/{progress.total}</span>
+                <span>
+                  {status === 'starting'
+                    ? 'Preparing benchmark...'
+                    : `${progress.pipeline || 'Running'} · ${progress.testId || ''}`}
+                </span>
+                <span>{progress.total ? `${progress.completed}/${progress.total}` : '...'}</span>
               </div>
               <div className="progress-bar">
-                <div className="progress-fill" style={{ width: progress.total ? `${(progress.completed/progress.total*100).toFixed(0)}%` : '0%' }} />
+                <div className="progress-fill" style={{ width: progress.total ? `${(progress.completed/progress.total*100).toFixed(0)}%` : '8%' }} />
               </div>
             </div>
           )}
@@ -112,6 +119,13 @@ export default function BenchmarkPage() {
             <span className="status-pill ok">
               <span className="dot" />
               Complete — {results.length} records
+            </span>
+          )}
+
+          {status === 'error' && (
+            <span className="status-pill" style={{ borderColor: 'var(--red)', color: 'var(--red)' }}>
+              <span className="dot" style={{ background: 'var(--red)' }} />
+              Benchmark error
             </span>
           )}
         </div>

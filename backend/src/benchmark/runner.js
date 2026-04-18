@@ -285,58 +285,82 @@ export class BenchmarkRunner extends EventEmitter {
     if (this.isRunning) throw new Error('Benchmark already running');
     this.isRunning = true;
     this.results = [];
-    this.aeo.clearCacheScope('benchmark'); // always start benchmark with cold benchmark cache
+    const testTimeoutMs = Math.max(
+      5000,
+      Number.parseInt(process.env.BENCHMARK_TEST_TIMEOUT_MS ?? '90000', 10) || 90000
+    );
 
-    const totalRuns = TEST_CORPUS.length * 2;
-    let completed = 0;
-
-    // Simulate realistic device state that drifts over time
-    let deviceState = { batteryPct: 78, ramUsedPct: 0.38 };
-
-    this.emit('start', { total: totalRuns });
-
-    for (const tc of TEST_CORPUS) {
-      // Baseline first
-      this.emit('progress', { completed, total: totalRuns, pipeline: 'Baseline', testId: tc.id, threads: 4 });
+    const runWithTimeout = async (fn, label) => {
+      let timeoutId;
       try {
-        await this.runSingle(tc, 'Baseline', { ...deviceState });
-      } catch(e) {
-        console.error(`Baseline ${tc.id} failed:`, e.message);
+        return await Promise.race([
+          fn(),
+          new Promise((_, reject) => {
+            timeoutId = setTimeout(() => {
+              reject(new Error(`${label} timed out after ${testTimeoutMs}ms`));
+            }, testTimeoutMs);
+          })
+        ]);
+      } finally {
+        if (timeoutId) clearTimeout(timeoutId);
       }
-      completed++;
+    };
 
-      // Drift device state (battery drains, RAM fluctuates)
-      deviceState.batteryPct = Math.max(15, deviceState.batteryPct - (1 + Math.random() * 2));
-      deviceState.ramUsedPct = Math.min(0.92, Math.max(0.2, deviceState.ramUsedPct + (Math.random() - 0.4) * 0.08));
+    try {
+      this.aeo.clearCacheScope('benchmark'); // always start benchmark with cold benchmark cache
 
-      // Small delay between runs to let CPU cool
-      await new Promise(r => setTimeout(r, 200));
+      const totalRuns = TEST_CORPUS.length * 2;
+      let completed = 0;
 
-      // AEO pipeline
-      this.emit('progress', {
-        completed,
-        total: totalRuns,
-        pipeline: 'AEO',
-        testId: tc.id,
-        threads: tc.expectedAeoThreads ?? 4
-      });
-      try {
-        await this.runSingle(tc, 'AEO', { ...deviceState });
-      } catch(e) {
-        console.error(`AEO ${tc.id} failed:`, e.message);
+      // Simulate realistic device state that drifts over time
+      let deviceState = { batteryPct: 78, ramUsedPct: 0.38 };
+
+      this.emit('start', { total: totalRuns });
+
+      for (const tc of TEST_CORPUS) {
+        // Baseline first
+        this.emit('progress', { completed, total: totalRuns, pipeline: 'Baseline', testId: tc.id, threads: 4 });
+        try {
+          await runWithTimeout(() => this.runSingle(tc, 'Baseline', { ...deviceState }), `Baseline ${tc.id}`);
+        } catch (e) {
+          console.error(`Baseline ${tc.id} failed:`, e.message);
+        }
+        completed++;
+
+        // Drift device state (battery drains, RAM fluctuates)
+        deviceState.batteryPct = Math.max(15, deviceState.batteryPct - (1 + Math.random() * 2));
+        deviceState.ramUsedPct = Math.min(0.92, Math.max(0.2, deviceState.ramUsedPct + (Math.random() - 0.4) * 0.08));
+
+        // Small delay between runs to let CPU cool
+        await new Promise(r => setTimeout(r, 200));
+
+        // AEO pipeline
+        this.emit('progress', {
+          completed,
+          total: totalRuns,
+          pipeline: 'AEO',
+          testId: tc.id,
+          threads: tc.expectedAeoThreads ?? 4
+        });
+        try {
+          await runWithTimeout(() => this.runSingle(tc, 'AEO', { ...deviceState }), `AEO ${tc.id}`);
+        } catch (e) {
+          console.error(`AEO ${tc.id} failed:`, e.message);
+        }
+        completed++;
+
+        deviceState.batteryPct = Math.max(15, deviceState.batteryPct - (0.5 + Math.random()));
+        deviceState.ramUsedPct = Math.min(0.92, Math.max(0.2, deviceState.ramUsedPct + (Math.random() - 0.5) * 0.05));
+
+        if (onProgress) onProgress({ completed, total: totalRuns });
+        await new Promise(r => setTimeout(r, 300));
       }
-      completed++;
 
-      deviceState.batteryPct = Math.max(15, deviceState.batteryPct - (0.5 + Math.random()));
-      deviceState.ramUsedPct = Math.min(0.92, Math.max(0.2, deviceState.ramUsedPct + (Math.random() - 0.5) * 0.05));
-
-      if (onProgress) onProgress({ completed, total: totalRuns });
-      await new Promise(r => setTimeout(r, 300));
+      return this.results;
+    } finally {
+      this.isRunning = false;
+      this.emit('complete', { results: this.results });
     }
-
-    this.isRunning = false;
-    this.emit('complete', { results: this.results });
-    return this.results;
   }
 
   async _sampleMemory() {
