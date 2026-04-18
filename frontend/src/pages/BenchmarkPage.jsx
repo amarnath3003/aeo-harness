@@ -20,6 +20,16 @@ export default function BenchmarkPage() {
   const [log, setLog] = useState([]);
   const eventSource = useRef(null);
   const tableRef = useRef(null);
+  const pollIntervalRef = useRef(null);
+
+  function mergeResults(existing, incoming) {
+    const byKey = new Map();
+    [...existing, ...incoming].forEach((r) => {
+      const key = `${r.test_id}|${r.pipeline_used}|${r.timestamp}`;
+      byKey.set(key, r);
+    });
+    return Array.from(byKey.values());
+  }
 
   function addLog(msg, type = '') {
     setLog(l => [...l.slice(-200), { msg, type, ts: new Date().toLocaleTimeString() }]);
@@ -45,7 +55,7 @@ export default function BenchmarkPage() {
         addLog(`[${event.testId}] ${event.pipeline} — running...`);
       } else if (event.event === 'result') {
         const r = event.result;
-        setResults(prev => [...prev, r]);
+        setResults(prev => mergeResults(prev, [r]));
         const flag = r.cache_hit ? ' 🎯 CACHE HIT' : '';
         addLog(
           `[${r.test_id}] ${r.pipeline_used} | threads=${r.thread_count} | tps=${r.generation_rate_tps} | power=${r.power_proxy_core_seconds}cs${flag}`,
@@ -63,13 +73,35 @@ export default function BenchmarkPage() {
 
     try {
       await api.startBenchmark();
+      pollIntervalRef.current = setInterval(async () => {
+        try {
+          const data = await api.getResults();
+          const incoming = data?.results || [];
+          if (incoming.length > 0) {
+            setResults(prev => mergeResults(prev, incoming));
+            setStatus(s => (s === 'starting' ? 'running' : s));
+          }
+        } catch {
+          // Keep polling as a resilient fallback when SSE is delayed/buffered.
+        }
+      }, 1500);
     } catch (err) {
       addLog(`Failed to start: ${err.message}`, 'error');
       setStatus('error');
     }
   }
 
-  useEffect(() => () => eventSource.current?.close(), []);
+  useEffect(() => () => {
+    eventSource.current?.close();
+    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+  }, []);
+
+  useEffect(() => {
+    if ((status === 'done' || status === 'error') && pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+  }, [status]);
 
   // Summary stats
   const aeoResults = results.filter(r => r.pipeline_used === 'AEO');
@@ -96,8 +128,8 @@ export default function BenchmarkPage() {
           <button className="btn primary" onClick={startBenchmark} disabled={isLoading}>
             {status === 'starting' ? 'Starting...' : status === 'running' ? 'Running...' : 'Run Full Benchmark'}
           </button>
-          <button className="btn" onClick={api.exportCSV} disabled={results.length === 0 || isLoading}>Export CSV</button>
-          <button className="btn" onClick={api.exportJSON} disabled={results.length === 0 || isLoading}>Export JSON</button>
+          <button className="btn" onClick={api.exportCSV}>Export CSV</button>
+          <button className="btn" onClick={api.exportJSON}>Export JSON</button>
 
           {isLoading && (
             <div style={{ flex: 1 }}>

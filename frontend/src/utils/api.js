@@ -2,6 +2,14 @@ import axios from 'axios';
 
 const BASE = '/api';
 
+function getStreamBaseUrl() {
+  if (process.env.REACT_APP_API_BASE) return process.env.REACT_APP_API_BASE;
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    return 'http://localhost:3001';
+  }
+  return window.location.origin;
+}
+
 function parseFilename(contentDisposition, fallbackName) {
   const match = contentDisposition?.match(/filename\*?=(?:UTF-8''|\")?([^;\"\n]+)/i);
   if (!match?.[1]) return fallbackName;
@@ -63,7 +71,7 @@ export const api = {
 };
 
 export function createBenchmarkStream(onEvent) {
-  const es = new EventSource('/api/benchmark/stream');
+  const es = new EventSource(`${getStreamBaseUrl()}/api/benchmark/stream`);
   es.onmessage = (e) => {
     try { onEvent(JSON.parse(e.data)); } catch {}
   };
@@ -72,7 +80,7 @@ export function createBenchmarkStream(onEvent) {
 }
 
 export function createTelemetryStream(onSample) {
-  const es = new EventSource('/api/telemetry/stream');
+  const es = new EventSource(`${getStreamBaseUrl()}/api/telemetry/stream`);
   es.onmessage = (e) => {
     try {
       const d = JSON.parse(e.data);
