@@ -516,7 +516,10 @@ export class BenchmarkRunner extends EventEmitter {
       expectations: {
         expectedPassCount: 0,
         expectedFailCount: 0,
-        totalChecked: 0
+        totalChecked: 0,
+        expectedHitChecks: 0,
+        expectedHitPassCount: 0,
+        expectedHitSuccessRatePct: 0
       }
     };
   }
@@ -546,6 +549,8 @@ export class BenchmarkRunner extends EventEmitter {
       const expectedHit = row.expectedCacheOutcome === 'hit';
       return Boolean(row.cache_hit) === expectedHit;
     }).length;
+    const expectedHitRows = expectationRows.filter((row) => row.expectedCacheOutcome === 'hit');
+    const expectedHitPassCount = expectedHitRows.filter((row) => Boolean(row.cache_hit)).length;
 
     return {
       generatedAt: new Date().toISOString(),
@@ -554,7 +559,10 @@ export class BenchmarkRunner extends EventEmitter {
       expectations: {
         expectedPassCount,
         expectedFailCount: expectationRows.length - expectedPassCount,
-        totalChecked: expectationRows.length
+        totalChecked: expectationRows.length,
+        expectedHitChecks: expectedHitRows.length,
+        expectedHitPassCount,
+        expectedHitSuccessRatePct: this._calcHitRatePct(expectedHitPassCount, expectedHitRows.length)
       }
     };
   }
@@ -570,7 +578,10 @@ export class BenchmarkRunner extends EventEmitter {
         'misses',
         'hitRatePct',
         'expectedPassCount',
-        'expectedFailCount'
+        'expectedFailCount',
+        'expectedHitChecks',
+        'expectedHitPassCount',
+        'expectedHitSuccessRatePct'
       ].join(',')
     );
 
@@ -582,7 +593,10 @@ export class BenchmarkRunner extends EventEmitter {
       summary.overall.misses,
       summary.overall.hitRatePct,
       summary.expectations.expectedPassCount,
-      summary.expectations.expectedFailCount
+      summary.expectations.expectedFailCount,
+      summary.expectations.expectedHitChecks,
+      summary.expectations.expectedHitPassCount,
+      summary.expectations.expectedHitSuccessRatePct
     ].map(escapeCsv).join(','));
 
     const scenarioOrder = ['exact', 'semantic', 'contextVariant', 'scopeIsolation'];
@@ -595,6 +609,9 @@ export class BenchmarkRunner extends EventEmitter {
         item.hits,
         item.misses,
         item.hitRatePct,
+        '',
+        '',
+        '',
         '',
         ''
       ].map(escapeCsv).join(','));

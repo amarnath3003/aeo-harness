@@ -23,12 +23,19 @@ function computeFallbackCacheSummary(cacheResults) {
   const hits = scenarioRows.filter((row) => row.cache_hit).length;
   const totalRuns = scenarioRows.length;
   const misses = Math.max(0, totalRuns - hits);
+  const expectedHitRows = scenarioRows.filter((row) => row.expectedCacheOutcome === 'hit');
+  const expectedHitPassCount = expectedHitRows.filter((row) => row.cache_hit).length;
 
   return {
     totalRuns,
     hits,
     misses,
     hitRatePct: totalRuns > 0 ? Number(((hits / totalRuns) * 100).toFixed(1)) : 0,
+    expectedHitChecks: expectedHitRows.length,
+    expectedHitPassCount,
+    expectedHitSuccessRatePct: expectedHitRows.length > 0
+      ? Number(((expectedHitPassCount / expectedHitRows.length) * 100).toFixed(1))
+      : 0,
   };
 }
 
@@ -43,8 +50,29 @@ function resolveCacheSummary(cacheSummary, cacheResults) {
     overall.hitRatePct,
     totalRuns > 0 ? Number(((hits / totalRuns) * 100).toFixed(1)) : 0
   );
+  const fallback = computeFallbackCacheSummary(cacheResults);
+  const expectedHitChecks = asNumber(
+    cacheSummary?.expectations?.expectedHitChecks,
+    fallback.expectedHitChecks
+  );
+  const expectedHitPassCount = asNumber(
+    cacheSummary?.expectations?.expectedHitPassCount,
+    fallback.expectedHitPassCount
+  );
+  const expectedHitSuccessRatePct = asNumber(
+    cacheSummary?.expectations?.expectedHitSuccessRatePct,
+    fallback.expectedHitSuccessRatePct
+  );
 
-  return { totalRuns, hits, misses, hitRatePct };
+  return {
+    totalRuns,
+    hits,
+    misses,
+    hitRatePct,
+    expectedHitChecks,
+    expectedHitPassCount,
+    expectedHitSuccessRatePct
+  };
 }
 
 export default function BenchmarkPage() {
@@ -192,8 +220,8 @@ export default function BenchmarkPage() {
     if (completionCacheLogRef.current) return;
 
     const summary = resolveCacheSummary(cacheSummary, cacheResults);
-    if (summary.totalRuns > 0) {
-      addLog(`Cache hit rate final: ${summary.hitRatePct.toFixed(1)}% (${summary.hits}/${summary.totalRuns})`, 'info');
+    if (summary.expectedHitChecks > 0) {
+      addLog(`Cache expected-hit success final: ${summary.expectedHitSuccessRatePct.toFixed(1)}% (${summary.expectedHitPassCount}/${summary.expectedHitChecks})`, 'info');
       completionCacheLogRef.current = true;
     }
   }, [status, cacheSummary, cacheResults]);
@@ -265,11 +293,11 @@ export default function BenchmarkPage() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 8, padding: '10px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg1)', flexShrink: 0 }}>
             {[
               {
-                label: 'Cache Hit Rate',
-                value: cacheBenchmarkSummary.hitRatePct.toFixed(1),
+                label: 'Cache Expected-Hit Success',
+                value: cacheBenchmarkSummary.expectedHitSuccessRatePct.toFixed(1),
                 suffix: '%',
                 color: 'var(--purple)',
-                note: `${cacheBenchmarkSummary.hits}/${cacheBenchmarkSummary.totalRuns} scenario hits`
+                note: `${cacheBenchmarkSummary.expectedHitPassCount}/${cacheBenchmarkSummary.expectedHitChecks} expected-hit prompts`
               },
               { label: 'AEO avg TPS', value: aeoTPS.toFixed(1), suffix: ' t/s', color: 'var(--green)' },
               { label: 'Baseline avg TPS', value: baseTPS.toFixed(1), suffix: ' t/s', color: 'var(--blue)' },
