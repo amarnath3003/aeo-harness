@@ -10,7 +10,28 @@ const PYTHON_RENDERER = path.join(__dirname, 'pythonPlotRenderer.py');
 const ALLOWED_STYLES = new Set(['matplotlib', 'seaborn', 'pandas']);
 
 function resolvePythonBinary() {
-  if (process.env.PYTHON_BIN) return process.env.PYTHON_BIN;
+  const fromEnv = process.env.PYTHON_BIN;
+  if (fromEnv) {
+    const resolvedEnv = path.isAbsolute(fromEnv)
+      ? fromEnv
+      : path.resolve(process.cwd(), fromEnv);
+    if (existsSync(resolvedEnv)) return resolvedEnv;
+    return fromEnv;
+  }
+
+  const candidates = process.platform === 'win32'
+    ? [
+        path.resolve(__dirname, '..', '..', '..', '.venv', 'Scripts', 'python.exe'),
+        path.resolve(__dirname, '..', '..', '.venv', 'Scripts', 'python.exe'),
+      ]
+    : [
+        path.resolve(__dirname, '..', '..', '..', '.venv', 'bin', 'python'),
+        path.resolve(__dirname, '..', '..', '.venv', 'bin', 'python'),
+      ];
+
+  const existing = candidates.find((candidate) => existsSync(candidate));
+  if (existing) return existing;
+
   return process.platform === 'win32' ? 'python' : 'python3';
 }
 
