@@ -57,6 +57,52 @@ function toCsv(rows, columns) {
   return [header, ...body].join('\n');
 }
 
+function sanitizeFilePart(value) {
+  return String(value || 'graph')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '') || 'graph';
+}
+
+function graphRowsToCsv(graph) {
+  const directRows = Array.isArray(graph?.data) ? graph.data : [];
+  if (directRows.length > 0) {
+    const keys = Array.from(directRows.reduce((set, row) => {
+      Object.keys(row || {}).forEach((key) => set.add(key));
+      return set;
+    }, new Set()));
+
+    return toCsv(directRows, keys.map((key) => ({
+      key,
+      label: key,
+      value: (row) => row?.[key]
+    })));
+  }
+
+  const seriesRows = (graph?.series || [])
+    .filter((series) => Array.isArray(series?.data))
+    .flatMap((series) => series.data.map((point) => ({
+      series_key: series.key,
+      series_label: series.label,
+      ...(point || {})
+    })));
+
+  if (seriesRows.length === 0) {
+    return 'note\nNo data for this graph';
+  }
+
+  const keys = Array.from(seriesRows.reduce((set, row) => {
+    Object.keys(row || {}).forEach((key) => set.add(key));
+    return set;
+  }, new Set(['series_key', 'series_label'])));
+
+  return toCsv(seriesRows, keys.map((key) => ({
+    key,
+    label: key,
+    value: (row) => row?.[key]
+  })));
+}
+
 function round(value, digits = 2) {
   const number = Number(value);
   if (!Number.isFinite(number)) return 0;
@@ -550,6 +596,16 @@ export const api = {
   exportAnalyticsGraphDataBundle: (bundle) => {
     const fileName = `aeo_analytics_graph_data_${Date.now()}.json`;
     downloadJsonFile(fileName, bundle);
+  },
+  exportAnalyticsGraphCsvPack: (bundle) => {
+    const timestamp = Date.now();
+    const graphs = Array.isArray(bundle?.graphs) ? bundle.graphs : [];
+
+    graphs.forEach((graph, index) => {
+      const part = sanitizeFilePart(graph?.graphId || graph?.title || `graph_${index + 1}`);
+      const fileName = `aeo_analytics_${String(index + 1).padStart(2, '0')}_${part}_${timestamp}.csv`;
+      downloadTextFile(fileName, graphRowsToCsv(graph), 'text/csv;charset=utf-8');
+    });
   },
   exportAnalyticsFigureSVG: async () => {
     const [resultsResponse, telemetryResponse] = await Promise.all([

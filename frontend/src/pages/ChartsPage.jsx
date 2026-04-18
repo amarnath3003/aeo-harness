@@ -270,6 +270,116 @@ export default function ChartsPage({ telemetrySamples }) {
     api.exportAnalyticsGraphDataBundle(bundle);
   };
 
+  const handleExportGraphCsvPack = () => {
+    const bundle = {
+      generatedAt: new Date().toISOString(),
+      exportType: 'analytics_graph_data_bundle',
+      benchmarkWindow: {
+        startTimestamp: benchmarkStartMs ? new Date(benchmarkStartMs).toISOString() : null,
+        endTimestamp: benchmarkEndMs ? new Date(benchmarkEndMs).toISOString() : null,
+        benchmarkComplete: completeBenchmark,
+      },
+      chartCount: 8,
+      graphs: [
+        {
+          graphId: 'power_proxy_comparison',
+          title: 'Power Proxy: AEO vs Baseline (core·seconds)',
+          chartType: 'bar',
+          xAxis: { key: 'id', label: 'Test ID' },
+          yAxis: { label: 'core_seconds' },
+          series: [
+            { key: 'basePower', label: 'Baseline', unit: 'core_seconds' },
+            { key: 'aeoPower', label: 'AEO', unit: 'core_seconds' },
+          ],
+          data: compData,
+        },
+        {
+          graphId: 'thread_allocation_distribution',
+          title: 'CPU Thread Allocation Distribution',
+          chartType: 'bar',
+          xAxis: { key: 'threads', label: 'Threads' },
+          yAxis: { key: 'count', label: 'Runs' },
+          series: [{ key: 'count', label: 'Run count', unit: 'runs' }],
+          data: threadData,
+        },
+        {
+          graphId: 'generation_tps_comparison',
+          title: 'Generation Rate: TPS (higher = faster)',
+          chartType: 'bar',
+          xAxis: { key: 'id', label: 'Test ID' },
+          yAxis: { label: 'tokens_per_second' },
+          series: [
+            { key: 'baseTPS', label: 'Baseline TPS', unit: 'tokens_per_second' },
+            { key: 'aeoTPS', label: 'AEO TPS', unit: 'tokens_per_second' },
+          ],
+          data: compData,
+        },
+        {
+          graphId: 'ttft_comparison',
+          title: 'Time to First Token: seconds (lower = better)',
+          chartType: 'bar',
+          xAxis: { key: 'id', label: 'Test ID' },
+          yAxis: { label: 'seconds' },
+          series: [
+            { key: 'baseTTFT', label: 'Baseline TTFT', unit: 'seconds' },
+            { key: 'aeoTTFT', label: 'AEO TTFT', unit: 'seconds' },
+          ],
+          data: compData,
+        },
+        {
+          graphId: 'memory_profile',
+          title: 'Memory Profile — RAM Usage Over Time (MB)',
+          chartType: 'line',
+          xAxis: { key: 't', label: 'time_seconds' },
+          yAxis: { key: 'ram', label: 'megabytes' },
+          series: [{ key: 'ram', label: 'RAM', unit: 'MB' }],
+          data: memData,
+        },
+        {
+          graphId: 'thermal_profile',
+          title: 'Thermal Stability Profile — CPU Temperature (°C)',
+          chartType: 'line',
+          xAxis: { key: 't', label: 'time_seconds' },
+          yAxis: { key: 'temp', label: 'celsius' },
+          series: [{ key: 'temp', label: 'Temp', unit: 'C' }],
+          data: thermalData,
+        },
+        {
+          graphId: 'battery_drain',
+          title: 'Battery Drain Simulation Over Session',
+          chartType: 'line',
+          xAxis: { key: 't', label: 'time_seconds' },
+          yAxis: { key: 'battery_pct', label: 'percent' },
+          series: [{ key: 'battery_pct', label: 'Battery', unit: 'percent' }],
+          data: batteryData,
+        },
+        {
+          graphId: 'thread_vs_power_scatter',
+          title: 'Thread Count vs Power Proxy (scatter)',
+          chartType: 'scatter',
+          xAxis: { key: 'threads', label: 'threads' },
+          yAxis: { key: 'power', label: 'core_seconds' },
+          series: [
+            {
+              key: 'baseline',
+              label: 'Baseline',
+              unit: 'core_seconds',
+              data: base.map(r => ({ threads: r.thread_count, power: r.power_proxy_core_seconds })),
+            },
+            {
+              key: 'aeo',
+              label: 'AEO',
+              unit: 'core_seconds',
+              data: aeo.map(r => ({ threads: r.thread_count, power: r.power_proxy_core_seconds })),
+            },
+          ],
+        },
+      ],
+    };
+
+    api.exportAnalyticsGraphCsvPack(bundle);
+  };
+
   const ChartCard = ({ title, children }) => (
     <div className="card" style={{ padding: 0 }}>
       <div className="card-header">
@@ -300,6 +410,7 @@ export default function ChartsPage({ telemetrySamples }) {
         </div>
         <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
           <button className="btn" onClick={handleExportGraphData}>Data Export</button>
+          <button className="btn" onClick={handleExportGraphCsvPack}>Data CSV Pack</button>
           <button className="btn" onClick={api.exportAnalyticsPaperCSV}>Paper CSV</button>
           <button className="btn" onClick={api.exportAnalyticsPaperJSON}>Paper JSON</button>
           <button className="btn" onClick={api.exportAnalyticsFigureSVG}>Figure SVG</button>
