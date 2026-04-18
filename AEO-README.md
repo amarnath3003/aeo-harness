@@ -84,7 +84,7 @@ User Input
 ```
 
 ### Stage 1 — Semantic Cache
-A local in-memory `Map`. Uses **Jaccard similarity** over content-word token sets to match semantically equivalent queries. Threshold: `0.55`. On a hit, the response is returned instantly with zero compute energy.
+A local in-memory `Map`. Uses **Jaccard similarity** over content-word token sets to match semantically equivalent queries. Similarity threshold: `0.55`. On a hit, the response is returned instantly with zero compute energy.
 
 ### Stage 2 — Token Pruner
 Reads verbose sensor data (GPS floats, barometric decimals, etc.) and compresses it into compact semantic tags using rule tables:
