@@ -97,6 +97,35 @@ export default function BenchmarkPage() {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+
+    const hydrateExistingResults = async () => {
+      try {
+        const data = await api.getResults();
+        if (cancelled) return;
+        const existing = data?.results || [];
+        if (existing.length > 0) {
+          setResults(existing);
+          setStatus('done');
+          setLog(l => [...l.slice(-200), {
+            msg: `Loaded ${existing.length} existing benchmark records`,
+            type: 'info',
+            ts: new Date().toLocaleTimeString()
+          }]);
+        }
+      } catch {
+        // Ignore hydration errors; user can still start a fresh benchmark run.
+      }
+    };
+
+    hydrateExistingResults();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     if ((status === 'done' || status === 'error') && pollIntervalRef.current) {
       clearInterval(pollIntervalRef.current);
       pollIntervalRef.current = null;

@@ -29,33 +29,6 @@ export default function ChartsPage({ telemetrySamples }) {
 
   const liveTelemetry = telemetrySamples ?? [];
 
-  async function refreshResults(isCancelled = () => false) {
-    try {
-      const d = await api.getResults();
-      if (!isCancelled()) {
-        const nextResults = d.results || [];
-        setResults(prev => {
-          if (prev.length === nextResults.length) {
-            const prevTail = prev[prev.length - 1];
-            const nextTail = nextResults[nextResults.length - 1];
-            if (
-              prevTail?.test_id === nextTail?.test_id &&
-              prevTail?.pipeline_used === nextTail?.pipeline_used &&
-              prevTail?.timestamp === nextTail?.timestamp
-            ) {
-              return prev;
-            }
-          }
-          return nextResults;
-        });
-      }
-    } finally {
-      if (!isCancelled()) {
-        setLoaded(true);
-      }
-    }
-  }
-
   useEffect(() => {
     let cancelled = false;
     let interval = null;
@@ -81,6 +54,7 @@ export default function ChartsPage({ telemetrySamples }) {
           }
           return nextResults;
         });
+        setLoaded(true);
 
         if (expectedTotalRuns && d.count >= expectedTotalRuns && interval) {
           clearInterval(interval);
