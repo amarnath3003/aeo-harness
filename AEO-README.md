@@ -203,7 +203,7 @@ node scripts/download-model.js --quant=Q8_0    # higher quality, ~1.5 GB
 node scripts/download-model.js --quant=IQ3_M   # smaller, lower quality
 ```
 
-The script handles redirects and shows download progress. The file is saved to `backend/models/`.
+The script handles redirects, shows download progress, and saves the file to `backend/models/`.
 
 ### Option B — Manual download
 
