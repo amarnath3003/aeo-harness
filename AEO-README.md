@@ -630,7 +630,7 @@ Returns the AEO pipeline audit log (last 500 entries).
 
 ---
 
-## 16. Mock Mode
+## 16. Mock mode
 
 If `MODEL_PATH` does not exist or the GGUF fails to load, the harness automatically enters **Mock Mode**. A warning appears in the terminal and the UI shows a purple "Mock mode" badge.
 
