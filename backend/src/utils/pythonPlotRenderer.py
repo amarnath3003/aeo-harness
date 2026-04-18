@@ -94,6 +94,16 @@ def render_bar(ax, graph, style):
         ax.set_xticks(base_positions)
         ax.set_xticklabels(labels)
 
+    graph_id = (graph.get('graphId') or '').lower()
+    if graph_id == 'generation_tps_comparison':
+        y_values = []
+        for s in series_defs:
+            y_values.extend([to_number(v, 0) for v in df[s['key']].tolist()])
+        if y_values:
+            max_val = max(y_values)
+            upper = max(max_val * 1.25, max_val + 20)
+            ax.set_ylim(0, upper)
+
     return True
 
 
