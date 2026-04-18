@@ -295,6 +295,7 @@ export default function ChartsPage({ telemetrySamples }) {
     aeoScatter,
   ]);
 
+  const [pythonPlotStyle, setPythonPlotStyle] = useState('seaborn');
   const [downloadsInFlight, setDownloadsInFlight] = useState({});
 
   const handleExportGraphData = () => {
@@ -305,15 +306,15 @@ export default function ChartsPage({ telemetrySamples }) {
     api.exportAnalyticsGraphCsvPack(graphBundle);
   };
 
-  const handleExportPythonImage = async (graphId, style) => {
+  const handleExportPythonImage = async (graphId) => {
     const graph = graphBundle.graphs.find((g) => g.graphId === graphId);
     if (!graph) return;
 
-    const key = `${graphId}:${style}`;
+    const key = graphId;
     setDownloadsInFlight((prev) => ({ ...prev, [key]: true }));
 
     try {
-      await api.exportAnalyticsGraphPythonImage(graph, style);
+      await api.exportAnalyticsGraphPythonImage(graph, pythonPlotStyle);
     } catch (err) {
       let detail = err?.message || 'Unknown export error';
       if (err?.response?.data && typeof err.response.data.text === 'function') {
@@ -325,7 +326,7 @@ export default function ChartsPage({ telemetrySamples }) {
           // Ignore parse failure and keep generic message.
         }
       }
-      window.alert(`Could not render ${style} image for ${graphId}: ${detail}`);
+      window.alert(`Could not render ${pythonPlotStyle} image for ${graphId}: ${detail}`);
     } finally {
       setDownloadsInFlight((prev) => ({ ...prev, [key]: false }));
     }
@@ -337,25 +338,14 @@ export default function ChartsPage({ telemetrySamples }) {
         <span className="card-title">{title}</span>
         {graphId && (
           <div style={{ display: 'flex', gap: 6 }}>
-            {[
-              { key: 'matplotlib', label: 'MPL PNG' },
-              { key: 'seaborn', label: 'SNS PNG' },
-              { key: 'pandas', label: 'PD PNG' },
-            ].map((style) => {
-              const stateKey = `${graphId}:${style.key}`;
-              const pending = !!downloadsInFlight[stateKey];
-              return (
-                <button
-                  key={style.key}
-                  className="btn"
-                  style={{ fontSize: 10, padding: '3px 8px' }}
-                  disabled={pending}
-                  onClick={() => handleExportPythonImage(graphId, style.key)}
-                >
-                  {pending ? '...' : style.label}
-                </button>
-              );
-            })}
+            <button
+              className="btn"
+              style={{ fontSize: 10, padding: '3px 8px' }}
+              disabled={!!downloadsInFlight[graphId]}
+              onClick={() => handleExportPythonImage(graphId)}
+            >
+              {!!downloadsInFlight[graphId] ? '...' : 'Download PNG'}
+            </button>
           </div>
         )}
       </div>
@@ -383,6 +373,17 @@ export default function ChartsPage({ telemetrySamples }) {
           <div style={{ fontSize: 12, color: 'var(--text2)' }}>Download chart data, CSV packs, and Python-rendered PNGs (Matplotlib, Seaborn, Pandas).</div>
         </div>
         <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+          <select
+            value={pythonPlotStyle}
+            onChange={(e) => setPythonPlotStyle(e.target.value)}
+            className="btn"
+            style={{ minWidth: 140 }}
+            title="Select Python plotting style for per-graph image download"
+          >
+            <option value="matplotlib">Matplotlib</option>
+            <option value="seaborn">Seaborn</option>
+            <option value="pandas">Pandas</option>
+          </select>
           <button className="btn" onClick={handleExportGraphData}>Data Export</button>
           <button className="btn" onClick={handleExportGraphCsvPack}>Data CSV Pack</button>
           <button className="btn" onClick={api.exportAnalyticsPaperCSV}>Paper CSV</button>
