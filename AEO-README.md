@@ -186,7 +186,7 @@ npm install --prefix backend
 npm install --prefix frontend
 ```
 
-> **Note on `node-llama-cpp`:** This package compiles `llama.cpp` from source using your system's C++ compiler during `npm install`. On macOS this uses `clang` (install Xcode CLI tools: `xcode-select --install`). On Ubuntu/Debian: `sudo apt install build-essential`. On Windows: use WSL2.
+> **Note on `node-llama-cpp`:** This package compiles `llama.cpp` from source using your system's C++ compiler during `npm install`. On macOS this uses `clang` (install the Xcode CLI tools: `xcode-select --install`). On Ubuntu/Debian: `sudo apt install build-essential`. On Windows: use WSL2.
 
 ---
 
