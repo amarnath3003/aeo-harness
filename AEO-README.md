@@ -355,7 +355,7 @@ Each test runs through **Baseline first**, then **AEO**, so the AEO cache is alw
 | `generation_rate_tps` | float | Tokens generated per second |
 | `total_generation_time_sec` | float | End-to-end inference wall time |
 | `power_proxy_core_seconds` | float | `total_time × thread_count` — battery proxy |
-| `cache_hit` | bool | True if Stage 1 served response with 0 compute |
+| `cache_hit` | bool | True if Stage 1 served the response with 0 compute. |
 | `tokens_original` | int | Token count before AEO pruning |
 | `tokens_pruned` | int | Token count after Stage 2 pruning |
 | `compression_ratio_pct` | float | Percentage of tokens eliminated |
