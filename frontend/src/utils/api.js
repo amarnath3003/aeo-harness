@@ -34,6 +34,17 @@ function downloadTextFile(fileName, content, mimeType = 'text/plain;charset=utf-
   window.URL.revokeObjectURL(blobUrl);
 }
 
+function downloadBlobFile(fileName, blob) {
+  const blobUrl = window.URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = blobUrl;
+  anchor.download = fileName;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.URL.revokeObjectURL(blobUrl);
+}
+
 function downloadJsonFile(fileName, payload) {
   downloadTextFile(fileName, JSON.stringify(payload, null, 2), 'application/json;charset=utf-8');
 }
@@ -547,14 +558,20 @@ async function downloadBenchmarkExport(format) {
 
   const fallbackName = `aeo_benchmark_${Date.now()}.${format}`;
   const fileName = parseFilename(response.headers['content-disposition'], fallbackName);
-  const blobUrl = window.URL.createObjectURL(response.data);
-  const anchor = document.createElement('a');
-  anchor.href = blobUrl;
-  anchor.download = fileName;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  window.URL.revokeObjectURL(blobUrl);
+  downloadBlobFile(fileName, response.data);
+}
+
+async function downloadAnalyticsPythonImage(graph, style = 'seaborn') {
+  const response = await axios.post(
+    `${BASE}/analytics/plot/export`,
+    { graph, style },
+    { responseType: 'blob' }
+  );
+
+  const graphPart = sanitizeFilePart(graph?.graphId || graph?.title || 'graph');
+  const fallbackName = `aeo_${graphPart}_${sanitizeFilePart(style)}_${Date.now()}.png`;
+  const fileName = parseFilename(response.headers['content-disposition'], fallbackName);
+  downloadBlobFile(fileName, response.data);
 }
 
 export const api = {
@@ -607,6 +624,8 @@ export const api = {
       downloadTextFile(fileName, graphRowsToCsv(graph), 'text/csv;charset=utf-8');
     });
   },
+  exportAnalyticsGraphPythonImage: (graph, style = 'seaborn') =>
+    downloadAnalyticsPythonImage(graph, style),
   exportAnalyticsFigureSVG: async () => {
     const [resultsResponse, telemetryResponse] = await Promise.all([
       api.getResults(),

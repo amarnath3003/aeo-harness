@@ -21,6 +21,7 @@ import { LlamaEngine } from './llamaEngine.js';
 import { AEOOrchestrator } from './aeo/orchestrator.js';
 import { BenchmarkRunner, TEST_CORPUS } from './benchmark/runner.js';
 import { TelemetrySampler } from './utils/telemetry.js';
+import { renderAnalyticsGraphImage } from './utils/plotRenderer.js';
 
 const app = express();
 app.use(cors());
@@ -259,6 +260,35 @@ app.get('/api/telemetry/history', (req, res) => {
   const limit = parseInt(req.query.limit ?? '200');
   const samples = telemetry.getSamples();
   res.json(samples.slice(-limit));
+});
+
+app.post('/api/analytics/plot/export', async (req, res) => {
+  const { graph, style = 'seaborn' } = req.body || {};
+
+  if (!graph || typeof graph !== 'object') {
+    return res.status(400).json({ error: 'graph payload is required' });
+  }
+
+  const safeGraphId = String(graph.graphId || 'analytics_graph')
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, '_');
+  const safeStyle = String(style || 'seaborn')
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, '_');
+
+  try {
+    const png = await renderAnalyticsGraphImage(graph, safeStyle);
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Content-Disposition', `attachment; filename="aeo_${safeGraphId}_${safeStyle}_${Date.now()}.png"`);
+    res.send(png);
+  } catch (err) {
+    console.error('/api/analytics/plot/export error:', err);
+    res.status(500).json({
+      error: 'Failed to render graph with Python plotting libraries',
+      detail: err.message,
+      hint: 'Install Python packages: matplotlib pandas seaborn'
+    });
+  }
 });
 
 // SSE stream — telemetry
