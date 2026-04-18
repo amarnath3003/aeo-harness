@@ -310,7 +310,7 @@ Charts auto-populate after a benchmark run. Eight charts:
 ```bash
 # In the UI: Benchmark Runner tab → "Run Full Benchmark"
 
-# Or via API:
+# Or via API (use curl):
 curl -X POST http://localhost:3001/api/benchmark/start
 ```
 
