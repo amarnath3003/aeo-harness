@@ -1,4 +1,4 @@
-# Adaptive Edge Orchestrator (AEO) — Research Benchmark Harness
+# Adaptive Edge Orchestrator (AEO) — Research benchmark harness
 
 > A full-stack PoC benchmark harness for the IEEE paper:
 > **"The Adaptive Edge Orchestrator: Dynamic Hardware Resource Management for LLM Inference on Resource-Constrained Mobile Devices"**
