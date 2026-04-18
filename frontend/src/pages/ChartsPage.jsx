@@ -117,6 +117,23 @@ export default function ChartsPage({ telemetrySamples }) {
 
   const completeBenchmark = expectedRuns ? results.length >= expectedRuns : false;
 
+  const benchmarkStartMs = results.length > 0
+    ? Math.min(...results.map(r => Date.parse(r.timestamp)).filter(Number.isFinite))
+    : null;
+  const benchmarkEndMs = completeBenchmark && results.length > 0
+    ? Math.max(...results.map(r => Date.parse(r.timestamp)).filter(Number.isFinite))
+    : null;
+
+  const telemetryForCharts = benchmarkStartMs
+    ? liveTelemetry.filter((sample) => {
+        const sampleMs = Date.parse(sample.timestamp);
+        if (!Number.isFinite(sampleMs)) return false;
+        if (sampleMs < benchmarkStartMs - 1000) return false;
+        if (benchmarkEndMs && sampleMs > benchmarkEndMs + 1000) return false;
+        return true;
+      })
+    : liveTelemetry;
+
   const aeo = results.filter(r => r.pipeline_used === 'AEO' && !r.cache_hit);
   const base = results.filter(r => r.pipeline_used === 'Baseline');
 
@@ -140,14 +157,14 @@ export default function ChartsPage({ telemetrySamples }) {
   });
 
   // Memory profile from telemetry
-  const memData = liveTelemetry.slice(-120).map(s => ({
+  const memData = telemetryForCharts.slice(-120).map(s => ({
     t: s.t,
     ram: s.ram_used_mb,
     pipeline: s.pipeline,
   }));
 
   // Thermal data
-  const thermalData = liveTelemetry.slice(-120).map(s => ({
+  const thermalData = telemetryForCharts.slice(-120).map(s => ({
     t: s.t,
     temp: s.cpu_temp_c,
     pipeline: s.pipeline,
@@ -341,7 +358,7 @@ export default function ChartsPage({ telemetrySamples }) {
         <ChartCard title="Battery Drain Simulation Over Session">
           <ResponsiveContainer width="100%" height={200}>
             <LineChart
-              data={liveTelemetry.slice(-120).map(s => ({ t: s.t, bat: s.battery_pct, pipeline: s.pipeline }))}
+              data={telemetryForCharts.slice(-120).map(s => ({ t: s.t, bat: s.battery_pct, pipeline: s.pipeline }))}
               margin={{ top: 5, right: 10, bottom: 10, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
               <XAxis dataKey="t" tick={{ fontSize: 9, fill: '#5f6678' }} />
