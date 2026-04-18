@@ -243,6 +243,226 @@ function analyticsPaperCsv(results) {
   ]);
 }
 
+function escapeXml(text) {
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+function maxOf(series, accessor) {
+  return series.reduce((max, item) => Math.max(max, Number(accessor(item)) || 0), 0);
+}
+
+function buildPath(points) {
+  return points.map((point, index) => `${index === 0 ? 'M' : 'L'}${point.x},${point.y}`).join(' ');
+}
+
+function buildAnalyticsFigureSvg(results, telemetrySamples) {
+  const report = summarizeAnalyticsRows(results, telemetrySamples);
+  const comparison = report.tables.comparison;
+  const threadDistribution = report.tables.threadDistribution;
+  const memoryProfile = report.tables.memoryProfile;
+  const thermalProfile = report.tables.thermalProfile;
+  const batteryProfile = report.tables.batteryProfile;
+
+  const width = 1400;
+  const height = 1200;
+  const panelW = 630;
+  const panelH = 300;
+  const leftX = 60;
+  const rightX = 710;
+  const topY = 150;
+  const row2Y = 540;
+  const row3Y = 930;
+  const axisColor = '#c7cbd6';
+  const gridColor = '#eef1f7';
+  const textColor = '#172033';
+
+  const compareMax = Math.max(
+    maxOf(comparison, row => row.baseline_power_core_seconds),
+    maxOf(comparison, row => row.aeo_power_core_seconds),
+    maxOf(comparison, row => row.baseline_tps),
+    maxOf(comparison, row => row.aeo_tps),
+    maxOf(comparison, row => row.baseline_ttft_seconds),
+    maxOf(comparison, row => row.aeo_ttft_seconds),
+    1
+  );
+  const threadMax = Math.max(...threadDistribution.map(row => row.count), 1);
+  const ramMax = Math.max(...memoryProfile.map(row => Number(row.ram_used_mb) || 0), 1);
+  const tempMax = Math.max(...thermalProfile.map(row => Number(row.cpu_temp_c) || 0), 1);
+  const batteryMin = Math.min(...batteryProfile.map(row => Number(row.battery_pct) || 100), 100);
+
+  const summary = report.summary;
+  const title = escapeXml(report.title);
+
+  const barPanel = (titleText, x, y, data, barAKey, barBKey, barALabel, barBLabel, valueLabel, maxValue, colorA, colorB) => {
+    const chartPad = 44;
+    const chartW = panelW - chartPad * 2;
+    const chartH = panelH - 95;
+    const barGroupW = data.length > 0 ? chartW / data.length : chartW;
+    const barW = Math.max(8, Math.min(26, barGroupW * 0.28));
+    const bars = data.map((item, index) => {
+      const xCenter = x + chartPad + index * barGroupW + barGroupW / 2;
+      const barA = (Number(item[barAKey]) || 0) / maxValue;
+      const barB = (Number(item[barBKey]) || 0) / maxValue;
+      const barBase = y + panelH - 46;
+      const aH = Math.max(1, barA * chartH);
+      const bH = Math.max(1, barB * chartH);
+      return `
+        <g>
+          <rect x="${xCenter - barW - 4}" y="${barBase - aH}" width="${barW}" height="${aH}" fill="${colorA}" rx="3"/>
+          <rect x="${xCenter + 4}" y="${barBase - bH}" width="${barW}" height="${bH}" fill="${colorB}" rx="3"/>
+          <text x="${xCenter}" y="${barBase + 14}" font-size="10" text-anchor="middle" fill="${textColor}">${escapeXml(item.test_id)}</text>
+        </g>
+      `;
+    }).join('');
+
+    return `
+      <g>
+        <rect x="${x}" y="${y}" width="${panelW}" height="${panelH}" rx="16" fill="#ffffff" stroke="#dde2ee"/>
+        <text x="${x + 24}" y="${y + 30}" font-size="18" font-weight="700" fill="${textColor}">${escapeXml(titleText)}</text>
+        <text x="${x + 24}" y="${y + 50}" font-size="11" fill="#5b6578">${escapeXml(valueLabel)}</text>
+        <line x1="${x + chartPad}" y1="${y + panelH - 46}" x2="${x + panelW - chartPad}" y2="${y + panelH - 46}" stroke="${axisColor}"/>
+        <line x1="${x + chartPad}" y1="${y + 55}" x2="${x + chartPad}" y2="${y + panelH - 46}" stroke="${axisColor}"/>
+        ${bars}
+        <g>
+          <rect x="${x + panelW - 172}" y="${y + 18}" width="12" height="12" fill="${colorA}" rx="2"/>
+          <text x="${x + panelW - 154}" y="${y + 28}" font-size="11" fill="${textColor}">${escapeXml(barALabel)}</text>
+          <rect x="${x + panelW - 172}" y="${y + 36}" width="12" height="12" fill="${colorB}" rx="2"/>
+          <text x="${x + panelW - 154}" y="${y + 46}" font-size="11" fill="${textColor}">${escapeXml(barBLabel)}</text>
+        </g>
+      </g>
+    `;
+  };
+
+  const linePanel = (titleText, subtitle, x, y, series, seriesA, seriesB, labelA, labelB, maxY, minY = 0) => {
+    const chartPad = 44;
+    const chartW = panelW - chartPad * 2;
+    const chartH = panelH - 95;
+    const sampleCount = Math.max(seriesA.length, seriesB.length, 1);
+    const scaleX = (index) => x + chartPad + (sampleCount === 1 ? chartW / 2 : (index / (sampleCount - 1)) * chartW);
+    const scaleY = (value) => {
+      const clamped = Math.max(minY, Math.min(maxY, value));
+      const ratio = (clamped - minY) / (maxY - minY || 1);
+      return y + 55 + (chartH - ratio * chartH);
+    };
+    const pointsA = seriesA.map((value, index) => ({ x: scaleX(index), y: scaleY(value) }));
+    const pointsB = seriesB.map((value, index) => ({ x: scaleX(index), y: scaleY(value) }));
+    const pathA = pointsA.length > 0 ? `<path d="${buildPath(pointsA)}" fill="none" stroke="#34d399" stroke-width="2.5"/>` : '';
+    const pathB = pointsB.length > 0 ? `<path d="${buildPath(pointsB)}" fill="none" stroke="#60a5fa" stroke-width="2.5"/>` : '';
+    const points = pointsA.length > 0 ? pointsA : pointsB;
+    const dots = points.map((point) => `<circle cx="${point.x}" cy="${point.y}" r="2.5" fill="#172033"/>`).join('');
+
+    return `
+      <g>
+        <rect x="${x}" y="${y}" width="${panelW}" height="${panelH}" rx="16" fill="#ffffff" stroke="#dde2ee"/>
+        <text x="${x + 24}" y="${y + 30}" font-size="18" font-weight="700" fill="${textColor}">${escapeXml(titleText)}</text>
+        <text x="${x + 24}" y="${y + 50}" font-size="11" fill="#5b6578">${escapeXml(subtitle)}</text>
+        <line x1="${x + chartPad}" y1="${y + panelH - 46}" x2="${x + panelW - chartPad}" y2="${y + panelH - 46}" stroke="${axisColor}"/>
+        <line x1="${x + chartPad}" y1="${y + 55}" x2="${x + chartPad}" y2="${y + panelH - 46}" stroke="${axisColor}"/>
+        <line x1="${x + chartPad}" y1="${scaleY(minY)}" x2="${x + panelW - chartPad}" y2="${scaleY(minY)}" stroke="${gridColor}" stroke-dasharray="4 4"/>
+        ${pathA}
+        ${pathB}
+        ${dots}
+        <g>
+          <rect x="${x + panelW - 170}" y="${y + 18}" width="12" height="12" fill="#34d399" rx="2"/>
+          <text x="${x + panelW - 152}" y="${y + 28}" font-size="11" fill="${textColor}">${escapeXml(labelA)}</text>
+          <rect x="${x + panelW - 170}" y="${y + 36}" width="12" height="12" fill="#60a5fa" rx="2"/>
+          <text x="${x + panelW - 152}" y="${y + 46}" font-size="11" fill="${textColor}">${escapeXml(labelB)}</text>
+        </g>
+      </g>
+    `;
+  };
+
+  const comparePowerPanel = barPanel(
+    'Power Proxy by Test Case',
+    leftX,
+    topY,
+    comparison,
+    'baseline_power_core_seconds',
+    'aeo_power_core_seconds',
+    'Baseline',
+    'AEO',
+    'core·seconds, lower is better',
+    compareMax,
+    '#60a5fa',
+    '#34d399'
+  );
+
+  const threadsPanel = barPanel(
+    'Thread Allocation Distribution',
+    rightX,
+    topY,
+    threadDistribution.map(row => ({
+      test_id: `${row.pipeline_used}-${row.threads}`,
+      baseline_power_core_seconds: row.pipeline_used === 'Baseline' ? row.count : 0,
+      aeo_power_core_seconds: row.pipeline_used === 'AEO' ? row.count : 0
+    })),
+    'baseline_power_core_seconds',
+    'aeo_power_core_seconds',
+    'Baseline count',
+    'AEO count',
+    'runs',
+    threadMax,
+    '#60a5fa',
+    '#34d399'
+  );
+
+  const ramSeries = memoryProfile.map(row => Number(row.ram_used_mb) || 0);
+  const tempSeries = thermalProfile.map(row => Number(row.cpu_temp_c) || 0);
+  const batterySeries = batteryProfile.map(row => Number(row.battery_pct) || 0);
+
+  const ramPoints = ramSeries.map((value, index) => value);
+  const tempPoints = tempSeries.map((value, index) => value);
+  const batteryPoints = batterySeries.map((value, index) => value);
+
+  const ramPanel = linePanel(
+    'Telemetry: RAM Usage Over Time',
+    'live memory profile from benchmark/telemetry stream',
+    leftX,
+    row2Y,
+    memoryProfile,
+    ramPoints,
+    [],
+    'RAM',
+    '',
+    ramMax,
+    0
+  );
+
+  const thermalPanel = linePanel(
+    'Telemetry: CPU Temperature and Battery',
+    'temperature and battery trend during benchmark session',
+    rightX,
+    row2Y,
+    thermalProfile,
+    tempPoints,
+    batteryPoints,
+    'CPU temp',
+    'Battery %',
+    Math.max(tempMax, 100),
+    0
+  );
+
+  const legendText = `Benchmark rows: ${report.counts.benchmarkRows} | telemetry samples: ${report.counts.telemetrySamples} | power saving: ${summary.benchmark.powerSavingPct}% | peak temp: ${summary.telemetry.peakCpuTempC}°C`;
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+  <rect width="100%" height="100%" fill="#f7f8fb"/>
+  <text x="60" y="54" font-size="30" font-weight="700" fill="${textColor}">${title}</text>
+  <text x="60" y="82" font-size="14" fill="#5b6578">Paper-ready analytics figure pack | generated ${escapeXml(report.generatedAt)}</text>
+  <text x="60" y="108" font-size="13" fill="#334155">${escapeXml(legendText)}</text>
+  <text x="60" y="132" font-size="12" fill="#5b6578">Summary: Baseline TPS ${summary.benchmark.baselineAvgTps} | AEO TPS ${summary.benchmark.aeoAvgTps} | Baseline power ${summary.benchmark.baselineAvgPowerCoreSeconds} | AEO power ${summary.benchmark.aeoAvgPowerCoreSeconds}</text>
+  ${comparePowerPanel}
+  ${threadsPanel}
+  ${ramPanel}
+  ${thermalPanel}
+</svg>`;
+}
+
 async function downloadBenchmarkPaper(format) {
   const response = await api.getResults();
   const report = summarizeBenchmarkRows(response.results || []);
@@ -322,7 +542,16 @@ export const api = {
   exportBenchmarkPaperCSV: () => downloadBenchmarkPaper('csv'),
   exportBenchmarkPaperJSON: () => downloadBenchmarkPaper('json'),
   exportAnalyticsPaperCSV: () => downloadAnalyticsPaper('csv'),
-  exportAnalyticsPaperJSON: () => downloadAnalyticsPaper('json')
+  exportAnalyticsPaperJSON: () => downloadAnalyticsPaper('json'),
+  exportAnalyticsFigureSVG: async () => {
+    const [resultsResponse, telemetryResponse] = await Promise.all([
+      api.getResults(),
+      api.getTelemetryHistory(300)
+    ]);
+
+    const svg = buildAnalyticsFigureSvg(resultsResponse.results || [], telemetryResponse || []);
+    downloadTextFile(`aeo_analytics_figure_${Date.now()}.svg`, svg, 'image/svg+xml;charset=utf-8');
+  }
 };
 
 export function createBenchmarkStream(onEvent) {

@@ -25,6 +25,7 @@ const tooltipStyle = {
 export default function ChartsPage({ telemetrySamples }) {
   const [results, setResults] = useState([]);
   const [loaded, setLoaded] = useState(false);
+  const [expectedRuns, setExpectedRuns] = useState(null);
 
   const liveTelemetry = telemetrySamples ?? [];
 
@@ -32,7 +33,21 @@ export default function ChartsPage({ telemetrySamples }) {
     try {
       const d = await api.getResults();
       if (!isCancelled()) {
-        setResults(d.results || []);
+        const nextResults = d.results || [];
+        setResults(prev => {
+          if (prev.length === nextResults.length) {
+            const prevTail = prev[prev.length - 1];
+            const nextTail = nextResults[nextResults.length - 1];
+            if (
+              prevTail?.test_id === nextTail?.test_id &&
+              prevTail?.pipeline_used === nextTail?.pipeline_used &&
+              prevTail?.timestamp === nextTail?.timestamp
+            ) {
+              return prev;
+            }
+          }
+          return nextResults;
+        });
       }
     } finally {
       if (!isCancelled()) {
@@ -43,24 +58,64 @@ export default function ChartsPage({ telemetrySamples }) {
 
   useEffect(() => {
     let cancelled = false;
+    let interval = null;
+    let expectedTotalRuns = null;
 
     const poll = async () => {
       try {
         if (cancelled) return;
-        await refreshResults(() => cancelled);
+        const d = await api.getResults();
+        if (cancelled) return;
+        const nextResults = d.results || [];
+        setResults(prev => {
+          if (prev.length === nextResults.length) {
+            const prevTail = prev[prev.length - 1];
+            const nextTail = nextResults[nextResults.length - 1];
+            if (
+              prevTail?.test_id === nextTail?.test_id &&
+              prevTail?.pipeline_used === nextTail?.pipeline_used &&
+              prevTail?.timestamp === nextTail?.timestamp
+            ) {
+              return prev;
+            }
+          }
+          return nextResults;
+        });
+
+        if (expectedTotalRuns && d.count >= expectedTotalRuns && interval) {
+          clearInterval(interval);
+          interval = null;
+        }
       } catch {
         if (!cancelled) setLoaded(true);
       }
     };
 
-    poll();
-    const interval = setInterval(poll, 1500);
+    (async () => {
+      try {
+        const corpus = await api.getCorpus();
+        if (cancelled) return;
+        expectedTotalRuns = Array.isArray(corpus) ? corpus.length * 2 : null;
+        setExpectedRuns(expectedTotalRuns);
+        await poll();
+        if (!cancelled) {
+          interval = setInterval(poll, 2000);
+        }
+      } catch {
+        if (!cancelled) {
+          await poll();
+          interval = setInterval(poll, 2000);
+        }
+      }
+    })();
 
     return () => {
       cancelled = true;
-      clearInterval(interval);
+      if (interval) clearInterval(interval);
     };
   }, []);
+
+  const completeBenchmark = expectedRuns ? results.length >= expectedRuns : false;
 
   const aeo = results.filter(r => r.pipeline_used === 'AEO' && !r.cache_hit);
   const base = results.filter(r => r.pipeline_used === 'Baseline');
@@ -139,8 +194,16 @@ export default function ChartsPage({ telemetrySamples }) {
         <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
           <button className="btn" onClick={api.exportAnalyticsPaperCSV}>Paper CSV</button>
           <button className="btn" onClick={api.exportAnalyticsPaperJSON}>Paper JSON</button>
+          <button className="btn" onClick={api.exportAnalyticsFigureSVG}>Figure SVG</button>
         </div>
       </div>
+
+      {completeBenchmark && (
+        <div className="status-pill ok" style={{ alignSelf: 'flex-start' }}>
+          <span className="dot" />
+          Stable analytics loaded — {results.length} records
+        </div>
+      )}
 
       {/* Row 1: Power proxy comparison + Thread allocation */}
       <div className="charts-grid">
