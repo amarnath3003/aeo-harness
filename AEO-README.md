@@ -728,7 +728,7 @@ If you use this harness in your paper, cite as:
   title  = {Adaptive Edge Orchestrator: A Benchmark Harness for LLM Edge Inference},
   author = {[Your Name]},
   year   = {2025},
-  note   = {Proof-of-Concept implementation for IEEE submission}
+  note   = {Proof-of-Concept implementation for IEEE submission.}
 }
 ```
 
