@@ -34,6 +34,10 @@ function downloadTextFile(fileName, content, mimeType = 'text/plain;charset=utf-
   window.URL.revokeObjectURL(blobUrl);
 }
 
+function downloadJsonFile(fileName, payload) {
+  downloadTextFile(fileName, JSON.stringify(payload, null, 2), 'application/json;charset=utf-8');
+}
+
 function escapeCsvValue(value) {
   if (value === null || value === undefined) return '';
   const stringValue = String(value);
@@ -543,6 +547,10 @@ export const api = {
   exportBenchmarkPaperJSON: () => downloadBenchmarkPaper('json'),
   exportAnalyticsPaperCSV: () => downloadAnalyticsPaper('csv'),
   exportAnalyticsPaperJSON: () => downloadAnalyticsPaper('json'),
+  exportAnalyticsGraphDataBundle: (bundle) => {
+    const fileName = `aeo_analytics_graph_data_${Date.now()}.json`;
+    downloadJsonFile(fileName, bundle);
+  },
   exportAnalyticsFigureSVG: async () => {
     const [resultsResponse, telemetryResponse] = await Promise.all([
       api.getResults(),
