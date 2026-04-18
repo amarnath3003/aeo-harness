@@ -269,7 +269,7 @@ Use this for **interactive testing** and quick manual comparisons.
 
 - **AEO Toggle** (top right): Toggle between AEO pipeline and direct Baseline inference on any query.
 - **Pipeline Visualization** (left sidebar): Watches Stage 1, 2, and 3 animate in real time as your query is processed. Green = hit/active, dimmed = bypassed.
-- **Quick Prompts**: Pre-loaded test queries across all urgency levels. The "↺ Cache test" button sends the same query twice — watch Stage 1 turn green on the second hit.
+- **Quick Prompts**: Preloaded test queries across all urgency levels. The "↺ Cache test" button sends the same query twice — watch Stage 1 turn green on the second hit.
 - **Metrics panel** (right sidebar): Shows TTFT, TPS, power proxy (core·seconds), thread count, and the allocator's reasoning for each response.
 
 **AEO ON vs OFF experiment:**
