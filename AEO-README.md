@@ -4,7 +4,6 @@
 > **"The Adaptive Edge Orchestrator: Dynamic Hardware Resource Management for LLM Inference on Resource-Constrained Mobile Devices"**
 
 ---
----
 
 ## Table of Contents
 
@@ -131,7 +130,6 @@ aeo-harness/
 │   ├── .env.example          ← Copy to .env and configure
 │   └── src/
 │       ├── env.js            ← .env loader (imported first)
-     ├── env.js            ← .env loader (imported first).
 │       ├── server.js         ← Express server + all API routes
 │       ├── llamaEngine.js    ← node-llama-cpp wrapper + mock mode
 │       ├── aeo/
