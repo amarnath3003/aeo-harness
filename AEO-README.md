@@ -49,7 +49,7 @@ The automated benchmark runner executes a predefined test corpus through **both*
 - RAM usage delta (MB) per run
 - CPU temperature over time (real sensor or synthetic)
 
-Results export to **CSV** and **JSON** for direct use in LaTeX tables or Python/R analysis.
+Results export to **CSV** and **JSON** for direct use in LaTeX tables or Python or R analysis.
 
 ---
 
