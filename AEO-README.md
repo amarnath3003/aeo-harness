@@ -153,7 +153,7 @@ aeo-harness/
         └── pages/
             ├── ChatPage.jsx      ← Interactive chat with AEO toggle
             ├── BenchmarkPage.jsx ← Automated runner + live results table
-            └── ChartsPage.jsx    ← 8 Recharts graphs (power, TPS, RAM, thermal)
+            └── ChartsPage.jsx    ← eight Recharts graphs (power, TPS, RAM, thermal)
 ```
 
 ---
