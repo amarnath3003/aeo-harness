@@ -230,7 +230,7 @@ MODEL_PATH=./models/llama-3.2-1b-instruct-Q4_K_M.gguf
 bash start.sh
 ```
 
-This checks Node, detects the model, installs missing deps, copies `.env`, and starts both servers with color-coded output.
+This checks Node, detects the model, installs missing dependencies, copies `.env`, and starts both servers with color-coded output.
 
 ### Manual: two terminals
 
