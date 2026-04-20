@@ -168,7 +168,7 @@ aeo-harness/
 | Disk | ≥ 1.5 GB | For model file |
 | OS | macOS / Linux / Windows (WSL2) | WSL2 strongly recommended on Windows |
 
-You do **not** need Python, CUDA, or any Hugging Face tokens.
+You do **not** need Python, CUDA, or Hugging Face tokens.
 
 ---
 
