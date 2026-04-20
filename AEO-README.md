@@ -120,7 +120,7 @@ Thread count is passed directly to `node-llama-cpp`'s context creation and maps 
 aeo-harness/
 │
 ├── package.json              ← Root: concurrently dev script
-├── start.sh                  ← One-command startup
+├── start.sh                  ← One-command startup script
 ├── .gitignore
 ├── scripts/
 │   └── download-model.js     ← HuggingFace model downloader
