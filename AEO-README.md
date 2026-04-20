@@ -4,6 +4,7 @@
 > **"The Adaptive Edge Orchestrator: Dynamic Hardware Resource Management for LLM Inference on Resource-Constrained Mobile Devices"**
 
 ---
+---
 
 ## Table of Contents
 
